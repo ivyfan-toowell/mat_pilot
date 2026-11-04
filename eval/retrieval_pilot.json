@@ -1,0 +1,20 @@
+{
+  "name": "PMC7153365 single-paper retrieval pilot",
+  "doi": "10.3390/nano10030546",
+  "sha256": "462e8e749a86098c12b92a8610ca83062fc4dd5f4d757f8a18a98cf82ffe7816",
+  "annotation_status": "Developer source-checked block labels; not an independent scientific benchmark",
+  "questions": [
+    {"id": "gap", "question": "TiO2-24 与 TiO2-48 的光学带隙各是多少 eV？", "evidence": {"p6-text-5": "3.42 eV and 3.09 eV", "p5-caption-table-0": "3.42 3.44", "p5-text-4": "3.42"}},
+    {"id": "hydrothermal", "question": "What hydrothermal temperature was used to prepare TiO2-X?", "evidence": {"p2-text-8": "180 ◦C"}},
+    {"id": "calcination", "question": "TiO2 样品煅烧的温度、时间和气氛是什么？", "evidence": {"p2-text-8": "400 ◦C for 2 h under N2 atmosphere"}},
+    {"id": "drs", "question": "DRS 测试使用什么仪器，扫描波长范围是什么？", "evidence": {"p3-text-1": "a scanning range of 200–800 nm"}},
+    {"id": "xrd", "question": "What instrument and scan range were used for X-ray diffraction characterization?", "evidence": {"p2-text-10": "scan range from 2◦to 80◦"}},
+    {"id": "lamp", "question": "光催化降解实验使用的光源功率和截止滤光片是什么？", "evidence": {"p3-text-3": "300 W Xe arc lamp"}},
+    {"id": "temperature", "question": "At what temperature was the photocatalytic reaction maintained during visible illumination?", "evidence": {"p3-text-3": "20 ◦C"}},
+    {"id": "surface", "question": "TiO2-24 的比表面积和孔容分别是多少？", "evidence": {"p4-text-1": "78.888 m2/g", "p5-caption-table-0": "78.888 0.312", "p5-text-4": "78.888"}},
+    {"id": "crystallite", "question": "Which equation and crystal plane were used to estimate the average crystallite size?", "evidence": {"p5-text-5": "anatase (101) plane of XRD using the Scherrer equation", "p5-text-6": "(101) crystal plane"}},
+    {"id": "rhb", "question": "TiO2-24 对 RhB 的降解效率及对应反应时间是多少？", "evidence": {"p7-text-5": "72.7%"}},
+    {"id": "scavenger", "question": "Which scavengers were used to identify holes, hydroxyl radicals and superoxide radicals?", "evidence": {"p8-text-3": "EDTA-2Na, tert-butyl alcohol (t-BuOH) and N2"}},
+    {"id": "esr", "question": "What ESR g-factor signal was attributed to surface oxygen vacancies?", "evidence": {"p9-text-1": "g = 2.004"}}
+  ]
+}
