@@ -1,12 +1,17 @@
 """统一加载本地配置与服务密钥，为各模块提供经过校验的设置。"""
 
+import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_TENANT_ID = "local"
+TENANT_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+AuthMode = Literal["off", "api_key"]
 
 
 class Settings(BaseSettings):
@@ -33,6 +38,15 @@ class Settings(BaseSettings):
     sparse_corpus_limit: int = Field(default=10000, ge=100, le=50000)
     database_url: SecretStr | None = None
     data_dir: Path = PROJECT_ROOT / "data"
+    auth_mode: AuthMode = "off"
+    auth_api_keys: str = ""
+    job_workers: int = Field(default=2, ge=1, le=8)
+    # 0 disables rate limiting (local/tests). Production example: 120 / 30.
+    rate_limit_per_minute: int = Field(default=0, ge=0, le=10000)
+    rate_limit_costly_per_minute: int = Field(default=30, ge=1, le=1000)
+    log_json: bool = False
+    schema_auto_apply: bool = True
+    vector_hnsw: bool = False
     log_level: str = "INFO"
     mp_timeout_seconds: int = Field(default=30, ge=1, le=120)
     backend_url: str = "http://127.0.0.1:8000"
@@ -56,6 +70,13 @@ class Settings(BaseSettings):
         if value not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
             raise ValueError("invalid log level")
         return value
+
+
+def tenant_data_dir(settings: Settings, tenant_id: str) -> Path:
+    """Return the filesystem root for one tenant. Never interpolate untrusted paths."""
+    if not TENANT_ID_PATTERN.fullmatch(tenant_id):
+        raise ValueError(f"invalid tenant_id: {tenant_id}")
+    return settings.data_dir / "tenants" / tenant_id
 
 
 @lru_cache

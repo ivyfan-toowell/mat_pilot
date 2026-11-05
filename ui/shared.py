@@ -1,11 +1,18 @@
 """提供统一主题、双端导航、文献上下文、来源弹窗和界面请求辅助功能。"""
 
+import os
+import time
 from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
 import streamlit as st
+
+
+def api_headers() -> dict[str, str]:
+    key = os.getenv("MATPILOT_API_KEY", "").strip()
+    return {"Authorization": f"Bearer {key}"} if key else {}
 
 WORKSPACES = {
     "材料筛选": ("materials", "tune"),
@@ -103,21 +110,64 @@ def service_status(backend_url: str) -> dict:
 
 @st.cache_data(ttl=15, show_spinner=False)
 def get_json(backend_url: str, path: str):
-    with httpx.Client(trust_env=False, timeout=15) as client:
+    with httpx.Client(trust_env=False, timeout=15, headers=api_headers()) as client:
         response = client.get(backend_url + path)
         response.raise_for_status()
         return response.json()
 
 
 def post_json(backend_url: str, path: str, payload: dict, timeout: int = 180) -> dict:
-    response = httpx.post(backend_url + path, json=payload, timeout=timeout, trust_env=False)
+    response = httpx.post(
+        backend_url + path,
+        json=payload,
+        timeout=timeout,
+        trust_env=False,
+        headers=api_headers(),
+    )
     response.raise_for_status()
     return response.json()
 
 
+def wait_job(
+    backend_url: str, job_id: str, timeout: int = 600, interval: float = 1.5
+) -> dict:
+    """Poll GET /api/v1/jobs/{id} until terminal state. Bypasses Streamlit cache."""
+    deadline = time.monotonic() + timeout
+    with httpx.Client(trust_env=False, timeout=30, headers=api_headers()) as client:
+        while time.monotonic() < deadline:
+            response = client.get(f"{backend_url}/api/v1/jobs/{job_id}")
+            response.raise_for_status()
+            job = response.json()
+            if job["status"] in {"succeeded", "failed"}:
+                return job
+            time.sleep(interval)
+    raise TimeoutError("异步任务等待超时")
+
+
+class JobFailed(RuntimeError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def run_job(backend_url: str, path: str, payload: dict, timeout: int = 600) -> dict:
+    """Submit async job (202) and wait for result payload."""
+    accepted = post_json(backend_url, path, payload, timeout=30)
+    job = wait_job(backend_url, accepted["job_id"], timeout=timeout)
+    if job["status"] == "failed":
+        error = job.get("error") or {}
+        raise JobFailed(error.get("code") or "job_failed", error.get("message") or "任务失败")
+    return job["result"]
+
+
 def request_error(exc: Exception, fallback: str) -> None:
     message = fallback
-    if isinstance(exc, httpx.HTTPStatusError):
+    if isinstance(exc, JobFailed):
+        message = exc.message or fallback
+    elif isinstance(exc, TimeoutError):
+        message = "任务等待超时，请稍后在历史记录中查看，或检查后端状态。"
+    elif isinstance(exc, httpx.HTTPStatusError):
         if exc.response.status_code == 422:
             message = "输入条件未通过检查，请核对必填项、年份或数值范围。"
         else:
@@ -138,7 +188,7 @@ def research_context(backend_url: str) -> dict | None:
         st.session_state.active_document_id = pending
         get_json.clear()
     try:
-        documents = get_json(backend_url, "/api/documents")
+        documents = get_json(backend_url, "/api/v1/documents")
     except (httpx.HTTPError, ValueError):
         st.caption("暂时无法读取文献列表；可稍后重试，或前往论文解析上传文献。")
         return st.session_state.get("document")
@@ -172,7 +222,7 @@ def research_context(backend_url: str) -> dict | None:
         st.session_state.pop("document", None)
         return None
     try:
-        document = get_json(backend_url, f"/api/documents/{chosen}")
+        document = get_json(backend_url, f"/api/v1/documents/{chosen}")
         st.session_state.document = document
         return document
     except (httpx.HTTPError, ValueError) as exc:

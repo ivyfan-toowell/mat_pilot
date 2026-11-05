@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from app.core.config import get_settings
+from app.core.config import LOCAL_TENANT_ID, get_settings, tenant_data_dir
 from app.core.errors import ServiceError
 from app.core.logging import configure_logging
 from app.schemas.material import MaterialQuery
@@ -35,8 +35,9 @@ def main() -> int:
             limit=args.limit,
         )
         result = MaterialsProjectService(settings).search(query)
-        QueryStore(settings.data_dir).save(result)
-        csv_path = settings.data_dir / "material_queries" / f"{result.query_id}.csv"
+        root = tenant_data_dir(settings, LOCAL_TENANT_ID)
+        QueryStore(root).save(result)
+        csv_path = root / "material_queries" / f"{result.query_id}.csv"
         csv_path.write_text(export_csv(result), encoding="utf-8-sig")
     except (ServiceError, ValueError, OSError) as exc:
         print(str(exc), file=sys.stderr)

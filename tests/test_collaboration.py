@@ -169,10 +169,10 @@ def test_parallel_experts_review_and_durable_http_readback(workspace_dir, monkey
     app.dependency_overrides[get_settings] = lambda: settings
     try:
         with TestClient(app) as client:
-            assert client.get(f"/api/agent/runs/{result.run_id}").json() == result.model_dump(
+            assert client.get(f"/api/v1/agent/runs/{result.run_id}").json() == result.model_dump(
                 mode="json"
             )
-            checkpoint = client.get(f"/api/agent/runs/{result.run_id}/checkpoint").json()
+            checkpoint = client.get(f"/api/v1/agent/runs/{result.run_id}/checkpoint").json()
             assert checkpoint["phase"] == "completed" and len(checkpoint["tools"]) == 2
     finally:
         app.dependency_overrides.clear()
@@ -201,7 +201,9 @@ def test_repeated_review_rejection_never_publishes_an_answer(workspace_dir, monk
     with pytest.raises(ServiceError) as error:
         agent.run(request(), "fixture")
     assert error.value.code == "agent_review_failed" and counts["review"] == 2
-    checkpoint_path = next((workspace_dir / "agent_runs").glob("*.checkpoint.json"))
+    checkpoint_path = next(
+        (workspace_dir / "tenants" / "local" / "agent_runs").glob("*.checkpoint.json")
+    )
     checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
     assert checkpoint["phase"] == "failed" and checkpoint["error"] == "agent_review_failed"
     assert not checkpoint_path.with_name(checkpoint_path.name.replace(".checkpoint", "")).exists()
@@ -214,7 +216,9 @@ def test_shared_model_budget_stops_repair_and_preserves_state(workspace_dir, mon
         agent.run(request(max_model_calls=5), "fixture")
     assert error.value.code == "agent_budget_exhausted" and counts["analysis"] == 1
     saved = json.loads(
-        next((workspace_dir / "agent_runs").glob("*.checkpoint.json")).read_text(encoding="utf-8")
+        next(
+            (workspace_dir / "tenants" / "local" / "agent_runs").glob("*.checkpoint.json")
+        ).read_text(encoding="utf-8")
     )
     assert saved["model_calls"] == 5 and saved["phase"] == "failed"
 

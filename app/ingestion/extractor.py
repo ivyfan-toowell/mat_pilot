@@ -6,10 +6,9 @@ import re
 import unicodedata
 from uuid import uuid4
 
-import httpx
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import LOCAL_TENANT_ID, Settings, tenant_data_dir
 from app.core.errors import ServiceError
 from app.schemas.document import ParsedDocument
 from app.schemas.experiment import (
@@ -19,6 +18,7 @@ from app.schemas.experiment import (
     ExtractionResult,
 )
 from app.schemas.selection import SelectedExperiments
+from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
 from app.services.evidence_service import copy_range, source_lines
 
@@ -166,8 +166,10 @@ def evaluate_selections(
 
 
 class ExperimentExtractor:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, tenant_id: str = LOCAL_TENANT_ID) -> None:
         self.settings = settings
+        self.tenant_id = tenant_id
+        self.data_dir = tenant_data_dir(settings, tenant_id)
 
     def extract(self, document: ParsedDocument) -> ExtractionResult:
         if not self.settings.dashscope_api_key:
@@ -220,42 +222,26 @@ class ExperimentExtractor:
             "严格按以下 JSON 结构输出：" + json.dumps(schema)
         )
         try:
-            with httpx.Client(timeout=60) as client:
-                response = client.post(
-                    f"{self.settings.llm_base_url.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": "Bearer "
-                        + self.settings.dashscope_api_key.get_secret_value()
-                    },
-                    json={
-                        "model": self.settings.llm_model,
-                        "temperature": 0,
-                        "max_tokens": 4000,
-                        "response_format": {"type": "json_object"},
-                        "messages": [
-                            {"role": "system", "content": prompt},
-                            {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
-                        ],
-                    },
-                )
-                response.raise_for_status()
-                payload = response.json()["choices"][0]["message"]["content"]
+            message = ChatService(self.settings).complete(
+                [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
+                ],
+                json_output=True,
+            )
+            payload = message["content"]
             selections = SelectedExperiments.model_validate_json(payload)
-        except (
-            httpx.HTTPError,
-            ValidationError,
-            ValueError,
-            KeyError,
-            IndexError,
-            TypeError,
-        ) as exc:
+        except (ServiceError, ValidationError, ValueError, KeyError, TypeError) as exc:
+            if isinstance(exc, ServiceError) and exc.code == "llm_not_configured":
+                raise
             raise ServiceError(
                 "extraction_failed", "结构化提取失败，未写入未经校验的实验记录。"
             ) from exc
         result = evaluate_selections(selections, document, self.settings.llm_model, truncated)
-        folder = DocumentService(self.settings.data_dir).directory / str(document.document_id)
+        docs = DocumentService(self.data_dir, self.settings, self.tenant_id)
+        folder = docs.directory / str(document.document_id)
         history = folder / "extraction_history" / str(uuid4())
-        history.mkdir(parents=True)
+        history.mkdir(parents=True, exist_ok=True)
         for name in (
             "extraction-candidates.json",
             "extraction-selections.json",
@@ -268,37 +254,29 @@ class ExperimentExtractor:
             result.model_dump_json(indent=2), encoding="utf-8"
         )
         # A failed retry must never replace a previously accepted extraction.
-        if result.experiments or not (folder / "experiments.json").exists():
-            (folder / "experiments.json").write_text(
-                result.model_dump_json(indent=2), encoding="utf-8"
-            )
+        if result.experiments or not docs.has_experiments(document.document_id):
+            docs.save_experiments(result)
         return result
 
     def revalidate(self, document: ParsedDocument) -> ExtractionResult:
-        folder = DocumentService(self.settings.data_dir).directory / str(document.document_id)
+        docs = DocumentService(self.data_dir, self.settings, self.tenant_id)
+        folder = docs.directory / str(document.document_id)
+        previous = docs.load_experiments(document.document_id)
         if (folder / "extraction-selections.json").exists():
             selections = SelectedExperiments.model_validate_json(
                 (folder / "extraction-selections.json").read_text(encoding="utf-8")
-            )
-            previous = ExtractionResult.model_validate_json(
-                (folder / "experiments.json").read_text(encoding="utf-8")
             )
             result = evaluate_selections(
                 selections, document, previous.model, previous.context_truncated
             )
             if result.experiments:
-                (folder / "experiments.json").write_text(
-                    result.model_dump_json(indent=2), encoding="utf-8"
-                )
+                docs.save_experiments(result)
             return result
         candidates = ExtractionCandidates.model_validate_json(
             (folder / "extraction-candidates.json").read_text(encoding="utf-8")
         )
-        previous = ExtractionResult.model_validate_json(
-            (folder / "experiments.json").read_text(encoding="utf-8")
-        )
         result = evaluate_candidates(
             candidates, document, previous.model, previous.context_truncated
         )
-        (folder / "experiments.json").write_text(result.model_dump_json(indent=2), encoding="utf-8")
+        docs.save_experiments(result)
         return result

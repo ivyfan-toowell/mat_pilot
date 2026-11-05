@@ -23,7 +23,7 @@ def save_document(root, offset=0):
         parsed_at=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(days=offset),
         blocks=[],
     )
-    folder = root / "documents" / str(document.document_id)
+    folder = root / "tenants" / "local" / "documents" / str(document.document_id)
     folder.mkdir(parents=True)
     (folder / "parsed.json").write_text(document.model_dump_json(), encoding="utf-8")
     return document, folder
@@ -32,7 +32,7 @@ def save_document(root, offset=0):
 @pytest.fixture
 def catalog_client(workspace_dir):
     app.dependency_overrides[get_settings] = lambda: Settings(
-        _env_file=None, data_dir=workspace_dir
+        _env_file=None, data_dir=workspace_dir, database_url=None
     )
     try:
         with TestClient(app) as client:
@@ -46,20 +46,20 @@ def test_document_catalog_is_bounded_sorted_and_omits_full_evidence(workspace_di
     old, _ = save_document(workspace_dir)
     new, folder = save_document(workspace_dir, 1)
     (folder / "experiments.json").write_text("{}", encoding="utf-8")
-    corrupt = workspace_dir / "documents" / str(uuid4())
+    corrupt = workspace_dir / "tenants" / "local" / "documents" / str(uuid4())
     corrupt.mkdir()
     (corrupt / "parsed.json").write_text("invalid", encoding="utf-8")
-    mismatch = workspace_dir / "documents" / str(uuid4())
+    mismatch = workspace_dir / "tenants" / "local" / "documents" / str(uuid4())
     mismatch.mkdir()
     (mismatch / "parsed.json").write_text(old.model_dump_json(), encoding="utf-8")
-    response = catalog_client.get("/api/documents")
+    response = catalog_client.get("/api/v1/documents")
     assert response.status_code == 200
     records = response.json()
     assert [item["document_id"] for item in records] == [str(new.document_id), str(old.document_id)]
     assert records[0]["has_experiments"]
     assert "blocks" not in records[0] and "sha256" not in records[0]
-    assert len(catalog_client.get("/api/documents?limit=1").json()) == 1
-    assert catalog_client.get("/api/documents?limit=0").status_code == 422
+    assert len(catalog_client.get("/api/v1/documents?limit=1").json()) == 1
+    assert catalog_client.get("/api/v1/documents?limit=0").status_code == 422
 
 
 @pytest.mark.api
@@ -80,16 +80,16 @@ def test_saved_experiments_are_read_without_model_execution(
         pytest.fail("回读已保存记录不能重新调用提取模型")
 
     monkeypatch.setattr("app.api.documents.ExperimentExtractor.extract", fail)
-    response = catalog_client.get(f"/api/documents/{document.document_id}/experiments")
+    response = catalog_client.get(f"/api/v1/documents/{document.document_id}/experiments")
     assert response.status_code == 200
     assert response.json() == extraction.model_dump(mode="json")
-    assert catalog_client.get(f"/api/documents/{uuid4()}/experiments").status_code == 404
+    assert catalog_client.get(f"/api/v1/documents/{uuid4()}/experiments").status_code == 404
 
 
 @pytest.mark.api
 def test_history_only_lists_final_matching_runs(workspace_dir, catalog_client):
-    folder = workspace_dir / "agent_runs"
-    folder.mkdir()
+    folder = workspace_dir / "tenants" / "local" / "agent_runs"
+    folder.mkdir(parents=True)
     result = AgentResult(
         run_id=uuid4(),
         created_at=datetime.now(UTC),
@@ -104,9 +104,9 @@ def test_history_only_lists_final_matching_runs(workspace_dir, catalog_client):
     (folder / f"{result.run_id}.candidate.json").write_text(payload, encoding="utf-8")
     (folder / f"{uuid4()}.json").write_text(payload, encoding="utf-8")
     (folder / f"{uuid4()}.failure.json").write_text('{"error":"fixture"}', encoding="utf-8")
-    response = catalog_client.get("/api/agent/runs")
+    response = catalog_client.get("/api/v1/agent/runs")
     assert response.status_code == 200
     assert len(response.json()) == 1
     assert response.json()[0]["run_id"] == str(result.run_id)
     assert "tools" not in response.json()[0] and "claims" not in response.json()[0]
-    assert catalog_client.get("/api/agent/runs?limit=101").status_code == 422
+    assert catalog_client.get("/api/v1/agent/runs?limit=101").status_code == 422

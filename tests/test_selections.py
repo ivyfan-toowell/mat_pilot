@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.agents.research import resolve_answer
+from app.agents.claims import resolve_answer
 from app.schemas.agent import ToolRecord
 from app.schemas.selection import LineRange, SelectedAnswer
 from app.services.evidence_service import copy_range

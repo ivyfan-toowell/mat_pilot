@@ -20,17 +20,19 @@ def main() -> int:
     parser.add_argument("--query-id", type=UUID, required=True)
     args = parser.parse_args()
     settings = get_settings()
-    snapshot = QueryStore(settings.data_dir).load(args.query_id)
+    from app.core.config import LOCAL_TENANT_ID, tenant_data_dir
+
+    snapshot = QueryStore(tenant_data_dir(settings, LOCAL_TENANT_ID)).load(args.query_id)
     material_id = snapshot.materials[0].material_id
     report = {"checked_at": datetime.now(UTC).isoformat(), "query_id": str(args.query_id)}
     try:
         with TestClient(app) as client:
             responses = {
                 "health": client.get("/health"),
-                "saved_query": client.get(f"/api/materials/queries/{args.query_id}"),
-                "csv": client.get(f"/api/materials/queries/{args.query_id}/csv"),
-                "details": client.get(f"/api/materials/{material_id}"),
-                "structure": client.get(f"/api/materials/{material_id}/structure"),
+                "saved_query": client.get(f"/api/v1/materials/queries/{args.query_id}"),
+                "csv": client.get(f"/api/v1/materials/queries/{args.query_id}/csv"),
+                "details": client.get(f"/api/v1/materials/{material_id}"),
+                "structure": client.get(f"/api/v1/materials/{material_id}/structure"),
             }
             report["http_status"] = {
                 name: response.status_code for name, response in responses.items()

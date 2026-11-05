@@ -1,18 +1,18 @@
 # 开发与验收记录
 
-更新：2026-10-16。Python 3.13.15，按用户要求替换任务书的 3.12，uv.lock 固定依赖。
+更新：2026-11-05。Python 3.13，uv.lock 固定依赖。企业化 P0–P2 已落地；下一可选切片为 P3。
 
 ## 当前模块
 
 | 模块 | 实现 | 边界 |
 |---|---|---|
-| 材料 | MP 实时查询、公式校验、详情/结构、来源单位、JSON/CSV | 材料记录尚未迁入数据库 |
+| 材料 | MP 实时查询、公式校验、详情/结构、来源单位、租户目录 JSON/CSV | 材料记录尚未迁入数据库 |
 | PDF | PyMuPDF + pdfplumber，页码/块/表格，原文件与失败状态 | OCR、复杂跨页表格未完成 |
-| 实验 | 原文行号关联方法/条件，检查公式/数值/单位/样品，保留候选历史 | 需科研审核，未穷尽全文 |
-| RAG | pgvector、BM25L、RRF、通义 Rerank、带引用回答、12 问评测 | 单篇论文试验，需扩大样本 |
-| 界面 | FastAPI + Streamlit 五工作区 | Edge 真实完整流程通过 |
-| Agent | 单 Agent / 自动路由 / 多角色协作，7 个允许工具，Planner / 两专家 / Analysis / Reviewer | 需更多任务评测，阶段落盘尚不支持自动恢复 |
-| 部署 | 本机 DB Compose、localhost:5433、具名卷 | 全平台容器、认证、用户隔离未完成 |
+| 实验 | 原文行号关联方法/条件，检查公式/数值/单位/样品，保留候选历史；有库时 SSOT 为 `mp_experiments` | 需科研审核，未穷尽全文 |
+| RAG | pgvector、BM25L、RRF、通义 Rerank、带引用回答、12 问评测；索引与全文表分离 | 单篇论文试验，需扩大样本（P3） |
+| 界面 | FastAPI `/api/v1` + Streamlit；长任务走 jobs 轮询 | Edge 真实完整流程通过 |
+| Agent | `research` / `tools` / `claims` + 多角色协作；进程内 JobWorker | 需更多任务评测；无跨进程自动恢复 |
+| 部署 | 本机 DB Compose、API Key 租户隔离、限流/审计可选 | 全平台容器、OIDC/RBAC/RLS 未完成 |
 
 ## 真实材料验收
 
@@ -22,7 +22,7 @@ SDK LazyImport timeout 赋值问题已改为通过 MPRester 构造参数设置�
 
 scripts.verify_materials 已验证快照、CSV、详情与结构 HTTP 请求成功。
 首项结构 12 个原子，体积 204.9469218790116 Å³。
-记录：data/acceptance/materials.json；查询结果：data/material_queries/。
+记录：data/acceptance/materials.json；查询结果：`data/tenants/local/material_queries/`。
 qwen-plus 和 text-embedding-v4（1024 维）已真实调用成功。
 
 ## 真实文献验收
@@ -42,7 +42,8 @@ Nanomaterials 2020, 10, 546，DOI 10.3390/nano10030546。
 - 不同解析/提取批次独立保存；历史缺少证据的字段仍为 null，不补写科学数据。
 - context_truncated=true，不能声称穷尽全文数据。
 
-原始文件、模型候选和结果保存在 data/documents/当前文献UUID/。
+原始 PDF、模型候选与审计文件保存在 `data/tenants/{tenant_id}/documents/{文献UUID}/`。
+配置 `DATABASE_URL` 后，解析与实验元数据以 `mp_docs` / `mp_experiments` 为准，不再静默回退磁盘 JSON。
 旧 ID 4dc41e39-3fa8-46ee-a01c-e491a0bc1e47 为改进表格前的历史输出，不作当前验收。
 表格仍可能产生额外候选；原文匹配不代表科研人工审核完成。
 
@@ -50,7 +51,7 @@ Nanomaterials 2020, 10, 546，DOI 10.3390/nano10030546。
 
 文本按页和块分割，默认 1800 字符、重叠 200；表格完整保留。UUID5 稳定块 ID。
 每批最多 10 条向量化，校验返回索引、维度、非有限值和零向量。
-文献 JSON 与向量块单事务替换；重复索引不会积累同文献旧块；模型或维度不一致拒绝混用。
+向量侧单事务替换索引登记 stub 与块（全文在 DocumentStore / 本地 JSON）；重复索引不会积累同文献旧块；模型或维度不一致拒绝混用。
 Dense 使用精确余弦检索，新增 BM25L、RRF 融合及可选 qwen3-rerank。
 来源保留文献、页码、块、原文、链接和许可；分数按类别独立返回。
 每条结论提交引文，服务校验来源编号及原文匹配；证据不足时拒答。
@@ -69,7 +70,8 @@ uv run python -m scripts.verify_knowledge --document-id 377d0571-bae4-4667-9caa-
 
 ## 测试与下一门槛
 
-137 项离线测试通过，Ruff 通过（2026-11-04）。新增目录回读、工作区切换、输入保留和缺失值展示测试。覆盖 HTTP、来源、持久化、PDF、伪造原文/数值拒绝、
+历史节点：2026-11-04 曾达 137 项；截至 2026-11-05 企业化后 **152+** 项离线测试通过，Ruff 通过。
+覆盖 HTTP、认证租户、异步 jobs、SSOT、request_id/限流、来源、持久化、PDF、伪造原文/数值拒绝、
 分块、批量 Embedding、引用校验、依赖故障停止重试、引用修复预算、融合、重排及指标。
 Jieba 0.42.1 首次导入在 Python 3.13 存在第三方正则转义 SyntaxWarning，不影响本次测试。
 
@@ -78,8 +80,52 @@ Jieba 0.42.1 首次导入在 Python 3.13 存在第三方正则转义 SyntaxWarni
 来源选择使用每个工具连续行号；最多一次修复，失败不返回未经校验的答案。
 空字段/检索片段不能证明整篇论文未报告该信息，相关断言增加范围校验。
 
-V0.1 本机主流程已通过，进入 V0.8。后续门槛：增加 3–5 篇论文、复杂文档/OCR、
-扩大多角色任务、检索与文献样本评测，然后推进数据库持久化、图谱、报告、认证和完整容器部署。
+V0.1 本机主流程与企业化 P0–P2 已通过。后续门槛（含 P3）：增加 3–5 篇论文、复杂文档/OCR、
+扩大多角色任务与人审队列、检索评测扩容，再推进图谱、报告和完整容器部署。
+
+## 企业改造记录
+
+### 2026-11-05 · P0-a 认证与租户隔离
+
+- 新增 `app/core/auth.py`：`Principal`、`AUTH_MODE=off|api_key`、Bearer 校验（`hmac.compare_digest`）。
+- 租户文件根：`tenant_data_dir` → `data/tenants/{tenant_id}/`；向量表增加 `tenant_id`。
+- API 直读文件下沉到 `DocumentService` / `catalog_service`。
+- 迁移：`uv run python -m scripts.migrate_tenant_local`。
+- 测试：`tests/test_auth.py`（未授权 401、跨租户 404、`off` 模式 local 根）。
+- 验收：`uv run --locked --all-extras pytest -q` → **140 passed**；`ruff check .` 通过（2026-11-05）。
+- 变更明细见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+- 状态：**Done**。下一切片曾为 P0-b。
+
+### 2026-11-05 · P0-b 长任务异步化
+
+- 新增 `app/schemas/job.py`、`app/services/job_service.py`、`app/api/jobs.py`（前缀 `/api/v1/jobs`）。
+- lifespan 启动/停止 `JobWorker`；配置项 `JOB_WORKERS`。
+- UI：`run_job` / `wait_job` 提交并轮询；同步 API 保留。
+- 测试：`tests/test_jobs.py`（202、失败落盘、租户隔离、索引缺文献、同步兼容）。
+- 验收：`pytest -q` → **146 passed**；`ruff check .` 通过（2026-11-05）。
+- 状态：**Done**。
+
+### 2026-11-05 · P0-c 统一持久化
+
+- 新增 `app/services/db.py`、`app/services/document_store.py`；`DocumentService` 在有库时写 `mp_docs`。
+- `VectorStore.replace` 仅写索引 stub，消除与磁盘/库的全文双写；有库时读路径不回退 JSON。
+- 迁移：`uv run python -m scripts.migrate_docs_to_postgres`。
+- 测试：`tests/test_document_store.py`；无库路径回归仍走本地 JSON。
+- 验收：`pytest -q` → **148 passed**；`ruff check .` 通过（2026-11-05）。
+- 状态：**Done**。
+
+### 2026-11-05 · P1 + P2
+
+- P1-a：`RequestContextMiddleware` / `RateLimitMiddleware`；`LOG_JSON`；错误体（含 429）`request_id`。
+- P1-b：请求路径禁用 DDL；`SCHEMA_AUTO_APPLY` + Alembic；`VECTOR_HNSW`。
+- P2：`/api/v1`；`LLMClient`；`app/agents/{tools,claims,research}.py`；补全 response_model。
+- 验收：`pytest -q` → **152+ passed**；`ruff check .` 通过。
+- 状态：**Done**。下一可选切片：**P3 评测扩容与人审队列**。
+
+### 2026-11-05 · 硬化后清理
+
+- 收敛原子写（`app/core/io.py`）、去掉 research 再导出、Comparison schema 归入 `schemas/material`、
+  限流前缀对齐 `/api/v1`、health 统一进 `api/health.py`、文档与 CHANGELOG 对齐现状。
 OpenAlex 已配置并真实调用成功，提供在线元数据检索与快照回读，见 [论文发现](literature.md)。
 
 2026-10-16 新增验收：OpenAlex 真实 HTTP/界面/科研助手报告在 data/acceptance/openalex/；

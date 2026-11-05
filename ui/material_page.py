@@ -6,13 +6,24 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from ui.shared import badges, empty_state, number, page_header, post_json, request_error
+from ui.shared import (
+    api_headers,
+    badges,
+    empty_state,
+    number,
+    page_header,
+    post_json,
+    request_error,
+)
 
 
 @st.cache_data(ttl=120, show_spinner=False)
 def query_csv(backend_url: str, query_id: str) -> bytes:
     response = httpx.get(
-        f"{backend_url}/api/materials/queries/{query_id}/csv", timeout=30, trust_env=False
+        f"{backend_url}/api/v1/materials/queries/{query_id}/csv",
+        timeout=30,
+        trust_env=False,
+        headers=api_headers(),
     )
     response.raise_for_status()
     return response.content
@@ -83,7 +94,7 @@ def render(backend_url: str) -> None:
                 with st.spinner("正在查询 Materials Project，请勿重复提交…"):
                     st.session_state.material_result = post_json(
                         backend_url,
-                        "/api/materials/search",
+                        "/api/v1/materials/search",
                         {
                             "formula": formula.strip() or None,
                             "elements": [

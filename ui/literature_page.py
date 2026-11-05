@@ -74,7 +74,7 @@ def render(backend_url: str) -> None:
                 with st.spinner("正在检索 OpenAlex 元数据…"):
                     st.session_state.literature_result = post_json(
                         backend_url,
-                        "/api/literature/search",
+                        "/api/v1/literature/search",
                         {
                             "query": query.strip(),
                             "year_from": int(year_from) if restrict_years else None,

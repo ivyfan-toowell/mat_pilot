@@ -30,7 +30,11 @@ def main():
     args = parser.parse_args()
     settings = get_settings()
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
-    document = DocumentService(settings.data_dir).load(args.document_id)
+    from app.core.config import LOCAL_TENANT_ID, tenant_data_dir
+
+    document = DocumentService(
+        tenant_data_dir(settings, LOCAL_TENANT_ID), settings, LOCAL_TENANT_ID
+    ).load(args.document_id)
     if document.sha256 != dataset["sha256"]:
         raise ValueError("Dataset labels belong to a different paper SHA256")
     blocks = {block.block_id: block.text for block in document.blocks}
@@ -38,8 +42,8 @@ def main():
         for block_id, quote in item["evidence"].items():
             if normalized(quote) not in normalized(blocks[block_id]):
                 raise ValueError(f"Ground truth quote absent: {item['id']}/{block_id}")
-    store = VectorStore(settings)
-    store.initialize()
+    store = VectorStore(settings, LOCAL_TENANT_ID)
+    store.verify_embedding_config()
     chunks, truncated = store.list_chunks(args.document_id, settings.sparse_corpus_limit)
     if truncated or not chunks:
         raise ValueError("Pilot requires the complete indexed paper")

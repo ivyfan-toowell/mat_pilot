@@ -8,6 +8,7 @@ import streamlit as st
 
 from ui.shared import (
     activate_document,
+    api_headers,
     badges,
     empty_state,
     evidence_dialog,
@@ -15,9 +16,9 @@ from ui.shared import (
     go_to,
     number,
     page_header,
-    post_json,
     request_error,
     research_context,
+    run_job,
     safe_link,
 )
 
@@ -53,11 +54,12 @@ def render(backend_url: str) -> None:
             try:
                 with st.spinner("正在提取正文、页码和表格…"):
                     response = httpx.post(
-                        f"{backend_url}/api/documents",
+                        f"{backend_url}/api/v1/documents",
                         files={"file": (uploaded.name, uploaded.getvalue(), "application/pdf")},
                         data={"source_url": source, "license_name": license_name},
                         timeout=180,
                         trust_env=False,
+                        headers=api_headers(),
                     )
                     response.raise_for_status()
                 activate_document(response.json())
@@ -100,7 +102,7 @@ def render(backend_url: str) -> None:
             if document_id not in cache:
                 try:
                     cache[document_id] = get_json(
-                        backend_url, f"/api/documents/{document_id}/experiments"
+                        backend_url, f"/api/v1/documents/{document_id}/experiments"
                     )
                 except httpx.HTTPStatusError as exc:
                     if exc.response.status_code != 404:
@@ -113,11 +115,14 @@ def render(backend_url: str) -> None:
             ):
                 try:
                     with st.spinner("正在提取并校验实验原文…"):
-                        cache[document_id] = post_json(
-                            backend_url, f"/api/documents/{document_id}/extract", {}, 90
+                        cache[document_id] = run_job(
+                            backend_url,
+                            "/api/v1/jobs/documents/extract",
+                            {"document_id": document_id},
+                            180,
                         )
                     get_json.clear()
-                except (httpx.HTTPError, ValueError) as exc:
+                except (httpx.HTTPError, ValueError, TimeoutError, RuntimeError) as exc:
                     request_error(exc, "实验提取未完成，原有记录仍保留。")
             extraction = cache.get(document_id)
             if extraction:

@@ -11,9 +11,9 @@ from ui.shared import (
     evidence_dialog,
     get_json,
     page_header,
-    post_json,
     request_error,
     research_context,
+    run_job,
 )
 
 SOURCE_TOOLS = {
@@ -74,9 +74,9 @@ def render(backend_url: str) -> None:
         else:
             try:
                 with st.spinner("正在收集资料、分析并校验引用，请勿重复提交…"):
-                    result = post_json(
+                    result = run_job(
                         backend_url,
-                        "/api/agent/run",
+                        "/api/v1/jobs/agent",
                         {
                             "question": question.strip(),
                             "document_id": document["document_id"] if document else None,
@@ -92,11 +92,11 @@ def render(backend_url: str) -> None:
                 st.session_state.agent_result = result
                 st.session_state.agent_history_loaded = False
                 get_json.clear()
-            except (httpx.HTTPError, ValueError) as exc:
+            except (httpx.HTTPError, ValueError, TimeoutError, RuntimeError) as exc:
                 request_error(exc, "任务未完成，请检查服务配置；已有任务结果仍保留。")
     with st.expander("历史任务 · 无需再次调用模型"):
         try:
-            history = get_json(backend_url, "/api/agent/runs")
+            history = get_json(backend_url, "/api/v1/agent/runs")
         except (httpx.HTTPError, ValueError):
             history = []
             st.caption("暂时无法读取任务列表，可在下方按任务 ID 回读。")
@@ -120,7 +120,9 @@ def render(backend_url: str) -> None:
         run_id = manual.strip() or selected
         if st.button("读取已保存任务", disabled=not run_id, icon=":material/history:"):
             try:
-                st.session_state.agent_result = get_json(backend_url, f"/api/agent/runs/{run_id}")
+                st.session_state.agent_result = get_json(
+                    backend_url, f"/api/v1/agent/runs/{run_id}"
+                )
                 st.session_state.agent_history_loaded = True
             except (httpx.HTTPError, ValueError) as exc:
                 request_error(exc, "无法读取任务，请检查任务 ID 和后端状态。")

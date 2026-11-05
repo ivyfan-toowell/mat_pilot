@@ -13,7 +13,7 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     with TestClient(app) as client:
         response = client.post(
-            "/api/agent/run",
+            "/api/v1/agent/run",
             json={
                 "question": "请查询 Materials Project 中 TiO2 的候选材料，带隙范围 0–10 eV，"
                 "energy above hull 不超过 0.05 eV/atom，最多 3 条。"
@@ -41,10 +41,10 @@ def main() -> None:
             material["formula"] != "TiO2" for material in batch["materials"]
         ):
             raise RuntimeError("Agent failed to preserve the requested TiO2 formula constraint")
-        comparison = client.post("/api/materials/compare", json={"query_id": query_id})
+        comparison = client.post("/api/v1/materials/compare", json={"query_id": query_id})
         if comparison.status_code != 200 or len(comparison.json()["materials"]) != 3:
             raise RuntimeError("Material comparison did not preserve the real candidate batch")
-        if client.get(f"/api/agent/runs/{result['run_id']}").json() != result:
+        if client.get(f"/api/v1/agent/runs/{result['run_id']}").json() != result:
             raise RuntimeError("Saved agent trace differs from the HTTP response")
     folder = get_settings().data_dir / "acceptance"
     folder.mkdir(parents=True, exist_ok=True)

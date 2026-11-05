@@ -27,7 +27,12 @@ dependencies = [
 
 [project.optional-dependencies]
 ui = ["streamlit>=1.65,<2"]
-postgres = ["psycopg[binary]>=3.2,<4", "sqlalchemy>=2.0,<3", "pgvector>=0.4,<1"]
+postgres = [
+    "psycopg[binary]>=3.2,<4",
+    "sqlalchemy>=2.0,<3",
+    "pgvector>=0.4,<1",
+    "alembic>=1.14,<2",
+]
 
 [dependency-groups]
 dev = [

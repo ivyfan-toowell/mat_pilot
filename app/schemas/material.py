@@ -101,3 +101,15 @@ class CrystalStructureResult(BaseModel):
             "volume": "angstrom^3",
         }
     )
+
+
+class ComparisonRequest(BaseModel):
+    query_id: UUID
+    material_ids: list[str] = Field(default_factory=list, max_length=10)
+
+
+class MaterialComparisonResult(BaseModel):
+    query_id: str
+    data_kind: str
+    materials: list[dict]
+    warnings: list[str] = Field(default_factory=list)

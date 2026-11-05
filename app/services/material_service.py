@@ -2,11 +2,12 @@
 
 import logging
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pandas as pd
 
 from app.core.errors import ServiceError
+from app.core.io import atomic_write_text
 from app.schemas.material import MaterialSearchResult
 
 logger = logging.getLogger(__name__)
@@ -17,21 +18,15 @@ class QueryStore:
         self.directory = data_dir / "material_queries"
 
     def save(self, result: MaterialSearchResult) -> None:
-        temporary: Path | None = None
         try:
-            self.directory.mkdir(parents=True, exist_ok=True)
-            target = self.directory / f"{result.query_id}.json"
-            temporary = self.directory / f".{uuid4()}.tmp"
-            temporary.write_text(result.model_dump_json(indent=2), encoding="utf-8")
-            temporary.replace(target)
-        except OSError as exc:
-            logger.warning("Saving query failed type=%s", type(exc).__name__)
-            raise ServiceError(
-                "storage_unavailable", "查询结果保存失败，请检查数据目录权限。", 503
-            ) from exc
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
+            atomic_write_text(
+                self.directory / f"{result.query_id}.json",
+                result.model_dump_json(indent=2),
+                error_message="查询结果保存失败，请检查数据目录权限。",
+            )
+        except ServiceError:
+            logger.warning("Saving query failed")
+            raise
 
     def load(self, query_id: UUID) -> MaterialSearchResult:
         path = self.directory / f"{query_id}.json"

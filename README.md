@@ -9,8 +9,8 @@ MatPilot 将材料计算数据和论文原文组织在同一个科研工作台�
 每条科研结论应能追溯到数据来源：计算值与实验值分别保存，缺失字段保留为空，
 模型输出保留原文、页码与处理轨迹，便于研究者核查。
 
-**项目状态：** 已完成 V0.1 本机工作流验收，正在推进 V0.8 增强模块。
-当前为本机单用户开发版本；完整多模态能力仍在建设中。
+**项目状态：** 已完成 V0.1 本机工作流验收与企业化 P0–P2（租户、异步任务、文档 SSOT、可观测、`/api/v1`）。
+默认本机租户 `local`；完整多模态与 P3（评测扩容 / 人审）仍在建设中。
 
 ## 核心功能
 
@@ -29,23 +29,29 @@ MatPilot 将材料计算数据和论文原文组织在同一个科研工作台�
 
 ~~~mermaid
 flowchart TD
-    UI["Streamlit · 五个工作区"] --> API["FastAPI · 业务接口"]
+    UI["Streamlit · 五个工作区"] --> API["FastAPI · /api/v1"]
+    API --> AUTH["Principal · API Key / local"]
+    AUTH --> TENANT["tenants/{id} 文件与向量"]
+    API --> JOBS["JobWorker · 异步长任务"]
     API --> MAT["材料查询与比较"]
     API --> LIT["论文发现"]
-    API --> DOC["PDF 解析与实验信息提取"]
+    API --> DOC["DocumentService / DocumentStore"]
     API --> RAG["文献检索与引用问答"]
-    API --> AGENT["单 Agent / 多角色协作"]
+    API --> AGENT["research + tools/claims + collaboration"]
     MAT --> MP["Materials Project"]
     LIT --> OA["OpenAlex · 元数据"]
     DOC --> PARSE["PyMuPDF / pdfplumber"]
-    DOC --> MODEL["DashScope · Qwen"]
-    DOC --> FILES["本地文件 · 原文 / 证据 / 快照 / 轨迹"]
-    RAG --> MODEL
-    RAG <--> PG[("PostgreSQL + pgvector")]
+    DOC --> LLM["LLMClient · DashScope"]
+    DOC --> FILES["租户目录 · PDF / 审计 / 快照 / jobs"]
+    RAG --> LLM
+    RAG <--> PG[("PostgreSQL · mp_docs / mp_chunks")]
     AGENT --> MAT
     AGENT --> LIT
     AGENT --> RAG
     AGENT --> FILES
+    JOBS --> AGENT
+    JOBS --> DOC
+    JOBS --> RAG
 ~~~
 
 协作流程包含 Planner、材料专家、文献专家、Analysis 和独立 Reviewer，按任务依赖调用受限工具。
@@ -96,6 +102,28 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 | `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS` | 向量模型与维度 | 默认 `text-embedding-v4`、1024 维 |
 | `RERANK_URL` / `RERANK_MODEL` | 重排接口与模型 | 默认 `qwen3-rerank`；重排默认关闭 |
 | `DATABASE_URL` / `POSTGRES_*` | 数据库连接 | 首次本地使用可由下方脚本填充缺失凭据 |
+| `AUTH_MODE` / `AUTH_API_KEYS` | API Key 认证与租户 | 默认 `off`（租户 `local`）；共享部署设为 `api_key` |
+| `MATPILOT_API_KEY` | Streamlit 调用后端 | 与某个 `AUTH_API_KEYS` 中的 key 一致 |
+| `JOB_WORKERS` | 异步任务线程数 | 默认 2；界面长任务经 `/api/v1/jobs/*` 入队 |
+| `RATE_LIMIT_*` / `LOG_JSON` | 限流与日志 | 默认限流关闭；生产建议开启并使用 JSON 日志 |
+| `SCHEMA_AUTO_APPLY` / `VECTOR_HNSW` | 库表与向量索引 | 启动自动 DDL；可选 HNSW |
+
+业务数据保存在 `data/tenants/{tenant_id}/`。推荐迁移顺序：
+
+~~~powershell
+# 1) 填充缺失的本地数据库密码与连接串（不打印密码）。
+uv run --locked --all-extras python -m scripts.setup_database
+# 2) 旧扁平 data/* → tenants/local（若仍有旧布局）。
+uv run --locked --all-extras python -m scripts.migrate_tenant_local
+# 3) 启动 DB 后，schema 可由 SCHEMA_AUTO_APPLY 或显式执行：
+#    uv run --locked --all-extras python -m scripts.apply_schema
+#    或：uv run --locked --all-extras alembic upgrade head
+# 4) 旧 parsed.json / experiments.json → Postgres SSOT。
+uv run --locked --all-extras python -m scripts.migrate_docs_to_postgres
+~~~
+
+生产建议：`AUTH_MODE=api_key` + `AUTH_API_KEYS` + UI `MATPILOT_API_KEY`；
+`RATE_LIMIT_PER_MINUTE>0`、`LOG_JSON=true`；可选 `VECTOR_HNSW=true`。
 
 完整变量见 [`.env.example`](.env.example)。DashScope 接口地域必须与密钥匹配，
 跨地域使用时应同时核对生成、Embedding 与 Rerank 配置。
@@ -106,7 +134,6 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 先启动 Docker Desktop，然后执行：
 
 ~~~powershell
-# 填充缺失的本地数据库密码与连接串，不输出密码，不替换已有配置。
 uv run --locked --all-extras python -m scripts.setup_database
 docker compose up -d --wait db
 
@@ -174,9 +201,9 @@ uv run --locked --all-extras python -m scripts.query_materials --formula TiO2 --
 ~~~text
 mat_pilot/
 ├── app/
-│   ├── agents/       # 单 Agent 与多角色协作
-│   ├── api/          # HTTP 接口
-│   ├── core/         # 配置、日志与错误处理
+│   ├── agents/       # research 编排、tools、claims、多角色协作
+│   ├── api/          # HTTP 接口（路由前缀 /api/v1）
+│   ├── core/         # 配置、认证、中间件、日志与错误处理
 │   ├── evaluation/   # 检索评测指标
 │   ├── ingestion/    # PDF、表格、实验信息提取与分块
 │   ├── schemas/      # 数据模型与验证
@@ -195,8 +222,14 @@ mat_pilot/
 └── uv.lock
 ~~~
 
-`data/material_queries/` 保存材料查询，`data/documents/<文献 UUID>/` 保存全文及解析证据，
-其他元数据、任务轨迹和验收记录也写入 `data/` 下对应目录；文献与向量块另存于 PostgreSQL。
+`data/tenants/<tenant_id>/documents/<文献 UUID>/` 保存 PDF 原件与导出/审计文件；
+配置数据库后，解析结果与实验提取以 PostgreSQL `mp_docs` / `mp_experiments` 为准。
+材料查询快照、Agent 任务与异步 job 状态仍在租户目录；向量块在 `mp_chunks`（含 `tenant_id`）。
+若本地仍有旧版 `parsed.json`，可执行：
+
+~~~powershell
+uv run --locked --all-extras python -m scripts.migrate_docs_to_postgres
+~~~
 首次克隆不会获得开发机上的论文、实验记录、向量索引和历史任务，需要自行导入。
 
 `.gitignore` 排除真实环境配置、数据、日志、缓存、数据库备份和本机沙箱排障资料。
@@ -211,7 +244,7 @@ uv run --locked --all-extras ruff check .
 uv lock --check
 ~~~
 
-截至 **2026-11-04**，开发环境中 **137 项离线测试通过，Ruff 检查通过**。
+截至 **2026-11-05**，开发环境中 **152+ 项离线测试通过，Ruff 检查通过**。
 测试使用明确的替身隔离外部服务；真实材料查询、PDF、RAG、OpenAlex 与协作案例另外验收，
 报告保存在本地 `data/acceptance/`，未随代码发布。
 响应式页面已检查 320–1440 px 视口；目前的检索评测仅包含单篇真实论文的 12 个问题，
@@ -230,8 +263,8 @@ uv lock --check
 - **科研审核**：原文匹配、数值检查和模型 Reviewer 辅助复核，不能代替研究者审核。MP 计算带隙与论文实验带隙需分别解释。
 - **检索范围**：材料查询首批最多 100 条，不代表全库排名；检索分数不是置信概率；元数据不能作为已阅读全文的证据。
 - **文档能力**：当前主要支持文本 PDF；扫描件会提示需要 OCR。Word、Excel、复杂版式和完整多模态解析仍待开发。
-- **运行方式**：当前绑定 localhost，无多用户认证及数据隔离；阶段 JSON 可回读，但没有持久任务队列和跨进程自动恢复。
-- **后续计划**：继续完善 V0.8 多角色协作、复杂文档和跨论文评测，再推进 V1.0 知识图谱、报告、用户隔离及完整服务部署。
+- **运行方式**：当前绑定 localhost；默认 `AUTH_MODE=off`（租户 `local`）。共享部署须开启 `api_key`。长任务有进程内异步队列与状态落盘，但尚无跨进程抢占或崩溃后自动恢复执行。
+- **后续计划（P3 / V0.8+）**：跨论文评测扩容、人审队列、OCR/多模态、跨进程 job 恢复；再推进 V1.0 知识图谱、报告、OIDC/RBAC 与完整服务部署。异步任务与文档 SSOT 已在 P0-b/c 落地。
 
 ## 项目文档
 

@@ -8,7 +8,8 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agents.research import ResearchAgent, validate_agent_claims
+from app.agents.claims import validate_agent_claims
+from app.agents.research import ResearchAgent
 from app.core.config import Settings, get_settings
 from app.core.errors import ServiceError
 from app.main import app
@@ -130,9 +131,12 @@ def test_search_preserves_filters_deduplicates_and_never_persists_key(
     assert len(calls) == 1 and len(result.papers) == 1
     assert result.possibly_truncated and result.papers[0].doi == "10.9999/fixture"
     assert result.metadata_only and result.papers[0].data_kind == "bibliographic_metadata"
-    assert LiteratureStore(workspace_dir).load(result.query_id) == result
+    from app.core.config import LOCAL_TENANT_ID, tenant_data_dir
+
+    root = tenant_data_dir(settings(workspace_dir), LOCAL_TENANT_ID)
+    assert LiteratureStore(root).load(result.query_id) == result
     assert KEY not in result.model_dump_json() and KEY not in caplog.text
-    assert not list((workspace_dir / "literature_queries").glob("*.tmp"))
+    assert not list((root / "literature_queries").glob("*.tmp"))
 
 
 def test_doi_lookup_uses_exact_filter_instead_of_keyword_search(workspace_dir, monkeypatch):
@@ -211,7 +215,7 @@ def test_rate_limit_retries_are_bounded_without_long_wait(
         LiteratureService(settings(workspace_dir)).search(LiteratureQuery(query="fixture"))
     assert len(calls) == expected_calls and len(delays) == expected_calls - 1
     assert error.value.code == "openalex_rate_limited"
-    assert not (workspace_dir / "literature_queries").exists()
+    assert not (workspace_dir / "tenants" / "local" / "literature_queries").exists()
 
 
 @pytest.mark.parametrize(
@@ -227,7 +231,7 @@ def test_invalid_provider_data_is_rejected_not_saved(workspace_dir, monkeypatch,
     with pytest.raises(ServiceError) as error:
         LiteratureService(settings(workspace_dir)).search(LiteratureQuery(query="fixture"))
     assert error.value.code == "openalex_invalid_response"
-    assert not (workspace_dir / "literature_queries").exists()
+    assert not (workspace_dir / "tenants" / "local" / "literature_queries").exists()
 
 
 def test_provider_cannot_silently_widen_requested_filters(workspace_dir, monkeypatch):
@@ -247,12 +251,12 @@ def test_http_search_readback_validation_and_not_found(workspace_dir, monkeypatc
     app.dependency_overrides[get_settings] = lambda: settings(workspace_dir)
     try:
         with TestClient(app) as client:
-            assert client.post("/api/literature/search", json={"query": " "}).status_code == 422
-            result = client.post("/api/literature/search", json={"query": "fixture"}).json()
-            response = client.get(f"/api/literature/queries/{result['query_id']}")
+            assert client.post("/api/v1/literature/search", json={"query": " "}).status_code == 422
+            result = client.post("/api/v1/literature/search", json={"query": "fixture"}).json()
+            response = client.get(f"/api/v1/literature/queries/{result['query_id']}")
             assert response.status_code == 200 and response.json() == result
             assert KEY not in response.text
-            assert client.get(f"/api/literature/queries/{uuid4()}").status_code == 404
+            assert client.get(f"/api/v1/literature/queries/{uuid4()}").status_code == 404
     finally:
         app.dependency_overrides.clear()
 

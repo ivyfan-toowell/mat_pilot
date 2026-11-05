@@ -23,14 +23,14 @@ def main() -> None:
         "of this paper? Please cite the original evidence."
     )
     with TestClient(app) as client:
-        indexed = client.post(f"/api/knowledge/documents/{args.document_id}/index")
+        indexed = client.post(f"/api/v1/knowledge/documents/{args.document_id}/index")
         if indexed.status_code != 200:
             raise RuntimeError(f"index failed: {indexed.status_code}, {indexed.text}")
         request = {"question": question, "document_id": str(args.document_id), "top_k": 8}
-        searched = client.post("/api/knowledge/search", json=request)
+        searched = client.post("/api/v1/knowledge/search", json=request)
         if searched.status_code != 200 or not searched.json()["hits"]:
             raise RuntimeError("live search returned no evidence")
-        answer = client.post("/api/knowledge/answer", json=request)
+        answer = client.post("/api/v1/knowledge/answer", json=request)
         if answer.status_code != 200 or answer.json()["status"] != "answered":
             raise RuntimeError(f"live answer failed: {answer.status_code}, {answer.text}")
     settings = get_settings()

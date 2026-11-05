@@ -4,7 +4,7 @@ import argparse
 import sys
 from uuid import UUID
 
-from app.core.config import get_settings
+from app.core.config import LOCAL_TENANT_ID, get_settings, tenant_data_dir
 from app.schemas.retrieval import SearchRequest
 from app.services.document_service import DocumentService
 from app.services.rag_service import RagService
@@ -20,13 +20,16 @@ def main() -> None:
     parser.add_argument("--rerank", action="store_true")
     args = parser.parse_args()
     settings = get_settings()
-    service = RagService(settings)
+    service = RagService(settings, LOCAL_TENANT_ID)
     if args.action == "index":
         if not args.document_id:
             parser.error("index requires --document-id")
         import json
 
-        print(json.dumps(service.index(DocumentService(settings.data_dir).load(args.document_id))))
+        document = DocumentService(
+            tenant_data_dir(settings, LOCAL_TENANT_ID), settings, LOCAL_TENANT_ID
+        ).load(args.document_id)
+        print(json.dumps(service.index(document)))
     else:
         if not args.question:
             parser.error("search/answer requires --question")

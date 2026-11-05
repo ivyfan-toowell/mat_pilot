@@ -129,20 +129,22 @@ def test_api_snapshot_survives_store_recreation(settings, mp_client):
     try:
         with TestClient(app) as client:
             assert client.get("/health").status_code == 200
-            response = client.post("/api/materials/search", json={"formula": "TiO2"})
+            response = client.post("/api/v1/materials/search", json={"formula": "TiO2"})
             assert response.status_code == 200
             query_id = response.json()["query_id"]
-            stored = QueryStore(settings.data_dir).load(query_id)
+            from app.core.config import LOCAL_TENANT_ID, tenant_data_dir
+
+            stored = QueryStore(tenant_data_dir(settings, LOCAL_TENANT_ID)).load(query_id)
             assert stored.query.formula == "TiO2"
-            assert client.get(f"/api/materials/queries/{query_id}").json() == response.json()
-            exported = client.get(f"/api/materials/queries/{query_id}/csv")
+            assert client.get(f"/api/v1/materials/queries/{query_id}").json() == response.json()
+            exported = client.get(f"/api/v1/materials/queries/{query_id}/csv")
             assert exported.status_code == 200
             assert "band_gap_eV" in exported.text
             assert "test-version" in exported.text
             assert "materialsproject.org/materials/mp-999999999" in exported.text
-            assert client.get(f"/api/materials/queries/{uuid4()}").status_code == 404
-            assert client.get("/api/materials/queries/not-a-uuid").status_code == 422
-            assert client.post("/api/materials/search", json={"limit": 0}).status_code == 422
+            assert client.get(f"/api/v1/materials/queries/{uuid4()}").status_code == 404
+            assert client.get("/api/v1/materials/queries/not-a-uuid").status_code == 422
+            assert client.post("/api/v1/materials/search", json={"limit": 0}).status_code == 422
             assert mp_client.materials.summary.search.call_count == 1
     finally:
         app.dependency_overrides.clear()
@@ -155,10 +157,10 @@ def test_api_missing_key(workspace_dir, monkeypatch):
     app.dependency_overrides[get_settings] = lambda: settings
     try:
         with TestClient(app) as client:
-            response = client.post("/api/materials/search", json={})
+            response = client.post("/api/v1/materials/search", json={})
             assert response.status_code == 503
             assert response.json()["error"]["code"] == "mp_not_configured"
-        assert not (workspace_dir / "material_queries").exists()
+        assert not (workspace_dir / "tenants" / "local" / "material_queries").exists()
     finally:
         app.dependency_overrides.clear()
 

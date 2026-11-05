@@ -40,14 +40,14 @@ def main():
                 "sort": "citations",
             },
         }.items():
-            response = client.post("/api/literature/search", json=query).raise_for_status()
+            response = client.post("/api/v1/literature/search", json=query).raise_for_status()
             result = response.json()
             if not result["papers"] or not result["metadata_only"]:
                 raise RuntimeError("Live query did not return metadata")
             if name == "doi" and result["papers"][0]["doi"] != DOI:
                 raise RuntimeError("Live DOI result mismatch")
             readback = (
-                client.get(f"/api/literature/queries/{result['query_id']}")
+                client.get(f"/api/v1/literature/queries/{result['query_id']}")
                 .raise_for_status()
                 .json()
             )
@@ -93,7 +93,7 @@ def main():
             with httpx.Client(
                 base_url="http://127.0.0.1:8000", trust_env=False, timeout=10
             ) as client:
-                agent = client.get(f"/api/agent/runs/{run_id}").raise_for_status().json()
+                agent = client.get(f"/api/v1/agent/runs/{run_id}").raise_for_status().json()
             successful = {tool["name"] for tool in agent["tools"] if tool["status"] == "ok"}
             if (
                 successful != {"search_academic_papers"}
