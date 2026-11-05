@@ -32,10 +32,12 @@ time_budget_seconds 默认为 240 秒，是模型/工具步骤之间检查的协
 max_steps 约束每个专家的规划循环（协作中最多取 4），不是总模型调用数。
 single 模式继续使用原有 max_steps/8 次工具调用限制，不使用协作专属预算字段。
 
-data/agent_runs/ 保存原子写入的阶段 checkpoint、两个专家的工具记录、Analysis 候选、
-Reviewer 结果与最终任务。可通过 GET /api/agent/runs/{run_id}/checkpoint 查看阶段状态，
+`data/tenants/{tenant_id}/agent_runs/`（默认 `tenants/local/agent_runs/`）保存原子写入的阶段
+checkpoint、两个专家的工具记录、Analysis 候选、Reviewer 结果与最终任务。
+界面长任务经 `POST /api/v1/jobs/agent` 入队并轮询；也可同步调用 `POST /api/v1/agent/run`。
+可通过 GET /api/v1/agent/runs/{run_id}/checkpoint 查看阶段状态，
 通过原有任务接口回读最终结果；界面支持输入历史任务 ID 查看答案和复核轨迹。
-当前是阶段状态落盘，不提供跨进程自动恢复或远程分布式任务队列。
+当前是阶段状态落盘 + 进程内 JobWorker，不提供跨进程自动恢复或远程分布式任务队列。
 失败状态中的 candidate 是未经最终通过的调试记录。
 
 ```json

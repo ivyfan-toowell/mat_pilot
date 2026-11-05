@@ -4,7 +4,7 @@ import argparse
 import sys
 from uuid import UUID
 
-from app.core.config import get_settings
+from app.core.config import LOCAL_TENANT_ID, get_settings, tenant_data_dir
 from app.ingestion.extractor import ExperimentExtractor
 from app.services.document_service import DocumentService
 
@@ -18,8 +18,10 @@ def main() -> None:
     )
     args = parser.parse_args()
     settings = get_settings()
-    document = DocumentService(settings.data_dir).load(args.document_id)
-    extractor = ExperimentExtractor(settings)
+    document = DocumentService(
+        tenant_data_dir(settings, LOCAL_TENANT_ID), settings, LOCAL_TENANT_ID
+    ).load(args.document_id)
+    extractor = ExperimentExtractor(settings, LOCAL_TENANT_ID)
     result = extractor.revalidate(document) if args.revalidate else extractor.extract(document)
     print(result.model_dump_json(indent=2))
 

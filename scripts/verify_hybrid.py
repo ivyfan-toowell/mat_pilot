@@ -27,7 +27,7 @@ def main():
         for mode in ("dense", "sparse", "hybrid"):
             result = (
                 client.post(
-                    "/api/knowledge/search",
+                    "/api/v1/knowledge/search",
                     json={"question": question, "document_id": document_id, "retrieval_mode": mode},
                 )
                 .raise_for_status()
@@ -44,7 +44,7 @@ def main():
             records[mode] = result
         assert (
             client.post(
-                "/api/knowledge/search", json={"question": question, "retrieval_mode": "invalid"}
+                "/api/v1/knowledge/search", json={"question": question, "retrieval_mode": "invalid"}
             ).status_code
             == 422
         )

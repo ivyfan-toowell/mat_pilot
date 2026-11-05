@@ -13,6 +13,7 @@ from ui.shared import (
     post_json,
     request_error,
     research_context,
+    run_job,
 )
 
 
@@ -26,14 +27,14 @@ def render(backend_url: str) -> None:
             if st.button("将文献加入知识库", icon=":material/library_add:"):
                 try:
                     with st.spinner("正在分块、向量化并保存文献…"):
-                        result = post_json(
+                        result = run_job(
                             backend_url,
-                            f"/api/knowledge/documents/{document['document_id']}/index",
-                            {},
+                            "/api/v1/jobs/knowledge/index",
+                            {"document_id": document["document_id"]},
                             300,
                         )
                     st.success(f"已索引 {result['chunks']} 个文档块。")
-                except (httpx.HTTPError, ValueError) as exc:
+                except (httpx.HTTPError, ValueError, TimeoutError, RuntimeError) as exc:
                     request_error(exc, "索引未完成，请检查数据库和向量服务。")
         else:
             st.caption("先在上方选择文献，或到论文解析工作区上传 PDF。")
@@ -87,7 +88,7 @@ def render(backend_url: str) -> None:
                 with st.spinner("正在检索原文并检查来源，请勿重复提交…"):
                     result = post_json(
                         backend_url,
-                        "/api/knowledge/" + ("answer" if mode == "带引用回答" else "search"),
+                        "/api/v1/knowledge/" + ("answer" if mode == "带引用回答" else "search"),
                         {
                             "question": question.strip(),
                             "document_id": document["document_id"]

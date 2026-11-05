@@ -19,6 +19,17 @@ MATERIAL_TOOLS = {"search_materials", "get_material_details", "get_structure", "
 LITERATURE_TOOLS = {"search_papers", "read_experiments", "search_academic_papers"}
 
 
+class AgentCheckpoint(BaseModel):
+    """协作阶段快照；允许扩展字段以兼容历史落盘。"""
+
+    model_config = {"extra": "allow"}
+
+    run_id: str | None = None
+    phase: str | None = None
+    model_calls: int | None = None
+    tool_calls: int | None = None
+
+
 class AgentRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000, pattern=r"\S")
     document_id: UUID | None = None

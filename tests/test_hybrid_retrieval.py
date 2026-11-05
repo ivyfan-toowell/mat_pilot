@@ -68,7 +68,7 @@ def test_exact_duplicate_uploads_do_not_outvote_distinct_measurements():
 
 def test_sparse_service_never_calls_embedding_and_reports_truncation(monkeypatch):
     service = RagService(Settings(_env_file=None, dashscope_api_key=None))
-    monkeypatch.setattr(service.store, "initialize", lambda: None)
+    monkeypatch.setattr(service.store, "verify_embedding_config", lambda: None)
     monkeypatch.setattr(service.store, "list_chunks", lambda *args: ([hit("Synthetic TiO2")], True))
 
     def forbidden(*args):

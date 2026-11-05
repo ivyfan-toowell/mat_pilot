@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from app.core.config import get_settings
+from app.core.config import LOCAL_TENANT_ID, get_settings, tenant_data_dir
 from app.services.document_service import DocumentService
 
 
@@ -18,7 +18,10 @@ def main() -> None:
     metadata = (
         json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
     )
-    document = DocumentService(get_settings().data_dir).ingest(
+    settings = get_settings()
+    document = DocumentService(
+        tenant_data_dir(settings, LOCAL_TENANT_ID), settings, LOCAL_TENANT_ID
+    ).ingest(
         args.path.read_bytes(), args.path.name, metadata.get("source_url"), metadata.get("license")
     )
     print(

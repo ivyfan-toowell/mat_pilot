@@ -1,21 +1,24 @@
 """比较已保存查询中的候选材料，保留计算属性的单位、来源及局限。"""
 
-from uuid import UUID
+from pathlib import Path
 
-from pydantic import BaseModel, Field
-
-from app.core.config import Settings
+from app.core.config import LOCAL_TENANT_ID, Settings, tenant_data_dir
 from app.core.errors import ServiceError
+from app.schemas.material import ComparisonRequest, MaterialComparisonResult
 from app.services.material_service import QueryStore
 
-
-class ComparisonRequest(BaseModel):
-    query_id: UUID
-    material_ids: list[str] = Field(default_factory=list, max_length=10)
+# Re-export for callers that historically imported schemas from this module.
+__all__ = ["ComparisonRequest", "MaterialComparisonResult", "compare_materials"]
 
 
-def compare_materials(request: ComparisonRequest, settings: Settings) -> dict:
-    result = QueryStore(settings.data_dir).load(request.query_id)
+def compare_materials(
+    request: ComparisonRequest,
+    settings: Settings,
+    tenant_id: str = LOCAL_TENANT_ID,
+    data_dir: Path | None = None,
+) -> MaterialComparisonResult:
+    root = data_dir if data_dir is not None else tenant_data_dir(settings, tenant_id)
+    result = QueryStore(root).load(request.query_id)
     candidates = {material.material_id: material for material in result.materials}
     if any(material_id not in candidates for material_id in request.material_ids):
         raise ServiceError("material_outside_query", "比较对象必须来自指定查询快照。", 422)
@@ -33,12 +36,12 @@ def compare_materials(request: ComparisonRequest, settings: Settings) -> dict:
         }
         for material_id in selected
     ]
-    return {
-        "query_id": str(result.query_id),
-        "data_kind": "computed",
-        "materials": rows,
-        "warnings": [
+    return MaterialComparisonResult(
+        query_id=str(result.query_id),
+        data_kind="computed",
+        materials=rows,
+        warnings=[
             *result.warnings,
             "比较限定于当前候选批次；空值保留，不依据带隙或凸包能量直接判定器件性能。",
         ],
-    }
+    )

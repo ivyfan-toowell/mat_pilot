@@ -5,7 +5,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agents.research import ResearchAgent, validate_agent_claims
+from app.agents.claims import validate_agent_claims
+from app.agents.research import ResearchAgent
 from app.core.config import Settings, get_settings
 from app.core.errors import ServiceError
 from app.main import app
@@ -59,14 +60,14 @@ def test_langgraph_loop_tools_evidence_and_persisted_http(workspace_dir, monkeyp
     app.dependency_overrides[get_settings] = lambda: settings
     try:
         with TestClient(app) as client:
-            response = client.post("/api/agent/run", json={"question": "fixture question"})
+            response = client.post("/api/v1/agent/run", json={"question": "fixture question"})
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "answered" and data["model_steps"] == 2
             assert data["answer"] == "Fixture answer [T1]"
             assert data["tools"][0]["name"] == "search_papers"
             assert data["claims"][0]["citations"][0]["quote"] == "explicit test fixture"
-            assert client.get(f"/api/agent/runs/{data['run_id']}").json() == data
+            assert client.get(f"/api/v1/agent/runs/{data['run_id']}").json() == data
     finally:
         app.dependency_overrides.clear()
 
@@ -136,7 +137,7 @@ def test_nested_original_text_is_decoded_before_quote_matching():
 
 
 def test_material_tool_requires_explicit_formula_or_null():
-    from app.agents.research import AgentMaterialQuery
+    from app.agents.tools import AgentMaterialQuery
 
     with pytest.raises(ValueError):
         AgentMaterialQuery(elements=["Ti", "O"])
@@ -162,7 +163,7 @@ def test_unavailable_dependency_stops_model_retries_and_keeps_failure_trace(
     with pytest.raises(ServiceError, match="Database test fixture"):
         agent.run(AgentRequest(question="fixture", max_steps=6))
     assert len(model_calls) == 1
-    trace_path = next((workspace_dir / "agent_runs").glob("*.failure.json"))
+    trace_path = next((workspace_dir / "tenants" / "local" / "agent_runs").glob("*.failure.json"))
     trace = json.loads(trace_path.read_text(encoding="utf-8"))
     assert trace["error"] == "database_unavailable"
     assert trace["tools"][0]["status"] == "error"
@@ -197,7 +198,9 @@ def test_citation_repair_is_bounded_and_does_not_repeat_tools(workspace_dir, mon
     result = agent.run(AgentRequest(question="fixture"))
     assert result.claims[0].citations[0].quote == "explicit test fixture"
     assert len(tool_calls) == 1
-    attempts = list((workspace_dir / "agent_runs").glob("*.candidate-*.json"))
+    attempts = list(
+        (workspace_dir / "tenants" / "local" / "agent_runs").glob("*.candidate-*.json")
+    )
     assert len(attempts) == 2
 
 
@@ -222,7 +225,7 @@ def test_missing_from_excerpts_does_not_imply_absent_from_entire_paper():
 
 
 def test_source_context_never_advertises_an_oversized_quote():
-    from app.agents.research import source_context
+    from app.agents.claims import source_context
     from app.schemas.selection import LineRange
     from app.services.evidence_service import copy_range
 
@@ -237,7 +240,7 @@ def test_source_context_never_advertises_an_oversized_quote():
 
 
 def test_citation_cannot_join_two_unrelated_excerpts():
-    from app.agents.research import resolve_answer
+    from app.agents.claims import resolve_answer
     from app.schemas.selection import SelectedAnswer
 
     record = ToolRecord(

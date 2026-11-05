@@ -1,13 +1,17 @@
 """汇总已解析文献与已完成科研任务，供界面按名称选择和回读本地记录。"""
 
+import json
 import logging
 from pathlib import Path
 from uuid import UUID
 
 from pydantic import ValidationError
 
+from app.core.config import LOCAL_TENANT_ID, Settings
+from app.core.errors import ServiceError
 from app.schemas.agent import AgentResult, AgentRunSummary
 from app.schemas.document import DocumentSummary, ParsedDocument
+from app.services.document_store import DocumentStore
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,14 @@ def _paths(folder: Path, pattern: str) -> list[Path]:
     return [path for _, path in sorted(candidates, reverse=True)[:500]]
 
 
-def list_documents(data_dir: Path, limit: int = 100) -> list[DocumentSummary]:
+def list_documents(
+    data_dir: Path,
+    limit: int = 100,
+    settings: Settings | None = None,
+    tenant_id: str = LOCAL_TENANT_ID,
+) -> list[DocumentSummary]:
+    if settings is not None and settings.database_url:
+        return DocumentStore(settings, tenant_id).list(limit)
     records = []
     for path in _paths(data_dir / "documents", "*/parsed.json"):
         try:
@@ -57,3 +68,21 @@ def list_agent_runs(data_dir: Path, limit: int = 50) -> list[AgentRunSummary]:
         except (OSError, ValidationError):
             logger.warning("跳过不可读取的任务归档：%s", path.stem)
     return sorted(records, key=lambda item: item.created_at, reverse=True)[:limit]
+
+
+def load_agent_run(data_dir: Path, run_id: UUID) -> AgentResult:
+    try:
+        return AgentResult.model_validate_json(
+            (data_dir / "agent_runs" / f"{run_id}.json").read_text(encoding="utf-8")
+        )
+    except FileNotFoundError as exc:
+        raise ServiceError("run_not_found", "未找到该 Agent 任务。", 404) from exc
+
+
+def load_agent_checkpoint(data_dir: Path, run_id: UUID) -> dict:
+    try:
+        return json.loads(
+            (data_dir / "agent_runs" / f"{run_id}.checkpoint.json").read_text(encoding="utf-8")
+        )
+    except FileNotFoundError:
+        raise ServiceError("checkpoint_not_found", "未找到该协作任务的阶段状态。", 404) from None

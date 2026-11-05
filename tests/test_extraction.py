@@ -139,7 +139,9 @@ def test_empty_retry_preserves_existing_records(evidence_document, workspace_dir
     from app.core.config import Settings
     from app.ingestion.extractor import ExperimentExtractor
 
-    folder = workspace_dir / "documents" / str(evidence_document.document_id)
+    folder = (
+        workspace_dir / "tenants" / "local" / "documents" / str(evidence_document.document_id)
+    )
     folder.mkdir(parents=True)
     original = '{"fixture":"previously accepted dataset"}'
     (folder / "experiments.json").write_text(original, encoding="utf-8")
@@ -152,7 +154,12 @@ def test_empty_retry_preserves_existing_records(evidence_document, workspace_dir
         )
 
     monkeypatch.setattr(httpx.Client, "post", post)
-    settings = Settings(_env_file=None, data_dir=workspace_dir, dashscope_api_key="fixture")
+    settings = Settings(
+        _env_file=None,
+        data_dir=workspace_dir,
+        database_url=None,
+        dashscope_api_key="fixture",
+    )
     result = ExperimentExtractor(settings).extract(evidence_document)
     assert result.experiments == []
     assert (folder / "experiments.json").read_text(encoding="utf-8") == original

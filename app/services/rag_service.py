@@ -3,15 +3,15 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-import httpx
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import LOCAL_TENANT_ID, Settings
 from app.core.errors import ServiceError
 from app.ingestion.chunker import chunk_document
 from app.ingestion.extractor import normalized
 from app.schemas.document import ParsedDocument
 from app.schemas.retrieval import AnswerDraft, AnswerResult, SearchRequest, SearchResult
+from app.services.chat_service import ChatService
 from app.services.embedding_service import EmbeddingService
 from app.services.hybrid_retrieval import deduplicate, reciprocal_rank_fusion, sparse_search
 from app.services.rerank_service import RerankService
@@ -50,17 +50,18 @@ def validate_answer(draft: AnswerDraft, result: SearchResult) -> AnswerResult:
 
 
 class RagService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, tenant_id: str = LOCAL_TENANT_ID) -> None:
         self.settings = settings
+        self.tenant_id = tenant_id
         self.embeddings = EmbeddingService(settings)
-        self.store = VectorStore(settings)
+        self.store = VectorStore(settings, tenant_id)
 
     def index(self, document: ParsedDocument) -> dict:
         chunks = chunk_document(document)
         if not chunks:
             raise ServiceError("no_document_text", "文献无可索引文本，请先完成 OCR。", 422)
         # Fail on DB configuration before incurring remote embedding costs.
-        self.store.initialize()
+        self.store.verify_embedding_config()
         vectors = self.embeddings.embed([chunk.text for chunk in chunks])
         self.store.replace(document, chunks, vectors)
         return {
@@ -71,7 +72,7 @@ class RagService:
         }
 
     def search(self, request: SearchRequest) -> SearchResult:
-        self.store.initialize()
+        self.store.verify_embedding_config()
         pool = request.candidate_k
         warnings = []
 
@@ -126,43 +127,24 @@ class RagService:
             + json.dumps(AnswerDraft.model_json_schema())
         )
         try:
-            with httpx.Client(timeout=60) as client:
-                response = client.post(
-                    f"{self.settings.llm_base_url.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": "Bearer "
-                        + self.settings.dashscope_api_key.get_secret_value()
+            message = ChatService(self.settings).complete(
+                [
+                    {"role": "system", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {"question": request.question, "sources": sources},
+                            ensure_ascii=False,
+                        ),
                     },
-                    json={
-                        "model": self.settings.llm_model,
-                        "temperature": 0,
-                        "max_tokens": 4000,
-                        "response_format": {"type": "json_object"},
-                        "messages": [
-                            {"role": "system", "content": prompt},
-                            {
-                                "role": "user",
-                                "content": json.dumps(
-                                    {"question": request.question, "sources": sources},
-                                    ensure_ascii=False,
-                                ),
-                            },
-                        ],
-                    },
-                )
-                response.raise_for_status()
-                draft = AnswerDraft.model_validate_json(
-                    response.json()["choices"][0]["message"]["content"]
-                )
+                ],
+                json_output=True,
+            )
+            draft = AnswerDraft.model_validate_json(message["content"])
             return validate_answer(draft, result)
-        except (
-            httpx.HTTPError,
-            ValidationError,
-            ValueError,
-            KeyError,
-            IndexError,
-            TypeError,
-        ) as exc:
+        except (ServiceError, ValidationError, ValueError, KeyError, TypeError) as exc:
+            if isinstance(exc, ServiceError) and exc.code == "llm_not_configured":
+                raise
             raise ServiceError(
                 "answer_failed", "回答生成或原文引用校验失败，未返回未经校验的回答。"
             ) from exc

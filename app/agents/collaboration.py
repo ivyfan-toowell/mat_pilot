@@ -14,9 +14,12 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
-from app.agents.research import DEPENDENCY_FAILURES, ResearchAgent, resolve_answer, source_context
-from app.core.config import Settings
+from app.agents.claims import resolve_answer, source_context
+from app.agents.research import ResearchAgent
+from app.agents.tools import DEPENDENCY_FAILURES
+from app.core.config import LOCAL_TENANT_ID, Settings, tenant_data_dir
 from app.core.errors import ServiceError
+from app.core.io import atomic_write_text
 from app.schemas.agent import (
     LITERATURE_TOOLS,
     MATERIAL_TOOLS,
@@ -82,15 +85,11 @@ def route_workflow(request: AgentRequest) -> tuple[str, str]:
 
 
 def save_json(path: Path, value: dict) -> None:
-    temporary = path.with_name(f".{path.name}.{uuid4()}.tmp")
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(path)
-    except OSError:
-        raise ServiceError("storage_unavailable", "协作任务状态保存失败。", 503) from None
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_text(
+        path,
+        json.dumps(value, ensure_ascii=False, indent=2),
+        error_message="协作任务状态保存失败。",
+    )
 
 
 class Budget:
@@ -162,10 +161,12 @@ def validate_quantities(draft: AgentDraft) -> None:
 
 
 class CollaborativeAgent:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, tenant_id: str = LOCAL_TENANT_ID):
         self.settings = settings
+        self.tenant_id = tenant_id
+        self.data_dir = tenant_data_dir(settings, tenant_id)
         self.chat = ChatService(settings)
-        self.executor = ResearchAgent(settings)
+        self.executor = ResearchAgent(settings, tenant_id)
 
     def complete(self, budget: Budget, *args, **kwargs):
         budget.charge("model")
@@ -277,7 +278,7 @@ class CollaborativeAgent:
                 "openalex_not_configured", "请在后端 .env 配置 OPENALEX_API_KEY。", 503
             )
         run_id = str(uuid4())
-        folder = self.settings.data_dir / "agent_runs"
+        folder = self.data_dir / "agent_runs"
         budget = Budget(request)
         role_metrics = []
         progress = {

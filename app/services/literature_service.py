@@ -11,8 +11,9 @@ from uuid import UUID, uuid4
 import httpx
 from pydantic import ValidationError
 
-from app.core.config import Settings
+from app.core.config import LOCAL_TENANT_ID, Settings, tenant_data_dir
 from app.core.errors import ServiceError
+from app.core.io import atomic_write_text
 from app.schemas.literature import AcademicPaper, LiteratureQuery, LiteratureResult
 
 OPENALEX_WORKS = "https://api.openalex.org/works"
@@ -82,15 +83,11 @@ class LiteratureStore:
         self.directory = data_dir / "literature_queries"
 
     def save(self, result: LiteratureResult) -> None:
-        temporary = self.directory / f".{uuid4()}.tmp"
-        try:
-            self.directory.mkdir(parents=True, exist_ok=True)
-            temporary.write_text(result.model_dump_json(indent=2), encoding="utf-8")
-            temporary.replace(self.directory / f"{result.query_id}.json")
-        except OSError:
-            raise ServiceError("storage_unavailable", "论文检索快照保存失败。", 503) from None
-        finally:
-            temporary.unlink(missing_ok=True)
+        atomic_write_text(
+            self.directory / f"{result.query_id}.json",
+            result.model_dump_json(indent=2),
+            error_message="论文检索快照保存失败。",
+        )
 
     def load(self, query_id: UUID) -> LiteratureResult:
         try:
@@ -108,8 +105,10 @@ class LiteratureStore:
 
 
 class LiteratureService:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, tenant_id: str = LOCAL_TENANT_ID):
         self.settings = settings
+        self.tenant_id = tenant_id
+        self.data_dir = tenant_data_dir(settings, tenant_id)
 
     def search(self, query: LiteratureQuery) -> LiteratureResult:
         if not self.settings.openalex_api_key:
@@ -243,6 +242,6 @@ class LiteratureService:
                     result.warnings.append("本页重复 DOI 或 OpenAlex ID 已去重；未继续翻页补齐。")
                 if result.possibly_truncated:
                     result.warnings.append("仅返回第一页的有限结果，不代表完整文献集合。")
-                LiteratureStore(self.settings.data_dir).save(result)
+                LiteratureStore(self.data_dir).save(result)
                 return result
         raise RuntimeError("OpenAlex retry loop exhausted")

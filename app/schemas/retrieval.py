@@ -28,6 +28,13 @@ class SearchRequest(BaseModel):
     rerank: bool = False
 
 
+class IndexResult(BaseModel):
+    document_id: str
+    chunks: int
+    embedding_model: str
+    dimensions: int
+
+
 class SearchHit(Chunk):
     similarity: float | None = None
     sparse_score: float | None = None

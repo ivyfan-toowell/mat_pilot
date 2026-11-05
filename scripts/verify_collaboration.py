@@ -10,8 +10,8 @@ from uuid import UUID
 import httpx
 from playwright.sync_api import expect, sync_playwright
 
+from app.agents.claims import validate_agent_claims
 from app.agents.collaboration import validate_quantities
-from app.agents.research import validate_agent_claims
 from app.core.config import PROJECT_ROOT
 from app.schemas.agent import AgentDraft, AgentResult
 
@@ -40,9 +40,9 @@ def main():
     }
     with httpx.Client(base_url="http://127.0.0.1:8000", trust_env=False, timeout=600) as client:
         response = (
-            client.get(f"/api/agent/runs/{args.run_id}")
+            client.get(f"/api/v1/agent/runs/{args.run_id}")
             if args.run_id
-            else client.post("/api/agent/run", json=request)
+            else client.post("/api/v1/agent/run", json=request)
         )
         if response.status_code != 200:
             raise RuntimeError(
@@ -85,10 +85,10 @@ def main():
             or any(item["formula"] != "TiO2" for item in batch["materials"])
         ):
             raise RuntimeError("Expert did not preserve the requested material constraints")
-        if client.get(f"/api/agent/runs/{result['run_id']}").raise_for_status().json() != result:
+        if client.get(f"/api/v1/agent/runs/{result['run_id']}").raise_for_status().json() != result:
             raise RuntimeError("Saved result differs from response")
         checkpoint = (
-            client.get(f"/api/agent/runs/{result['run_id']}/checkpoint").raise_for_status().json()
+            client.get(f"/api/v1/agent/runs/{result['run_id']}/checkpoint").raise_for_status().json()
         )
         if (
             checkpoint["phase"] != "completed"

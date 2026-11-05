@@ -10,6 +10,11 @@
 
 **最终目标：** 完成一个具备科研文献解析、真实材料数据库查询、多 Agent 协作、科研分析、知识图谱、可视化、多用户管理及基础部署能力的可交付产品。
 
+> **现状备注（2026-11-05）：** 下文大量内容为立项期规划，目录结构与部分里程碑可能与仓库现状不一致。
+> 以代码与 `CHANGELOG.md` / `docs/architecture.md` 为准。已提前落地：API Key 租户隔离、进程内异步 jobs、
+> 文献/实验 Postgres SSOT、`/api/v1`、`LLMClient`、Agent `tools`/`claims` 拆分。
+> 仍待：P3 评测扩容与人审、OCR/多模态、OIDC/RBAC、知识图谱与完整容器部署。运行时为 **Python 3.13**。
+
 ---
 
 # 一、项目背景与定位
@@ -644,7 +649,8 @@ Embedding API、Rerank API。
 - tenacity
 - Python logging
 
-暂时不强制使用 Redis / arq，除非文档处理任务的实际耗时需要独立后台执行。
+当前已有进程内 `JOB_WORKERS` 队列与租户级 job 落盘；仍不强制 Redis / arq。
+若需跨进程抢占或崩溃后自动恢复执行，再引入独立后台队列。
 
 ### 模块验收
 
@@ -1015,7 +1021,7 @@ MatPilot Web 平台
 
 | 领域 | 主要技术 |
 |---|---|
-| 开发语言 | Python 3.12 |
+| 开发语言 | Python 3.13 |
 | 项目管理 | uv |
 | 后端框架 | FastAPI |
 | 前端界面 | Streamlit |
@@ -1073,7 +1079,7 @@ Milvus、Neo4j、Redis 等可以通过适配器扩展，但不强制同时部署
 - MinerU 本地解析环境。
 - PP-StructureV3 运行环境。
 - Docker Desktop。
-- Python 3.12 虚拟环境。
+- Python 3.13 虚拟环境（uv + uv.lock）。
 - 允许处理的开放科研论文。
 - 真实材料数据库查询结果。
 - 小规模人工标注测试集。

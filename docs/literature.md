@@ -21,7 +21,7 @@ OPENALEX_TIMEOUT_SECONDS 默认 20 秒，是每次 HTTP 操作的超时设置，
 }
 ```
 
-POST /api/literature/search 返回 query_id；GET /api/literature/queries/{query_id} 回读快照。
+POST /api/v1/literature/search 返回 query_id；GET /api/v1/literature/queries/{query_id} 回读快照。
 缺少密钥返回 openalex_not_configured；认证失败 openalex_auth_failed；限流 openalex_rate_limited；
 不合法查询为 openalex_bad_query；上游结构无效或不保留筛选条件为 openalex_invalid_response。
 没有密钥时其他模块继续可用；科研助手不会向模型提供未配置的在线工具。

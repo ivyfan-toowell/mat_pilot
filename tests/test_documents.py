@@ -76,18 +76,21 @@ def test_empty_pages_flag_ocr_without_inventing_text(workspace_dir):
 
 @pytest.mark.api
 def test_upload_and_reload(workspace_dir):
-    settings = Settings(_env_file=None, data_dir=workspace_dir)
+    settings = Settings(_env_file=None, data_dir=workspace_dir, database_url=None)
     app.dependency_overrides[get_settings] = lambda: settings
     try:
         with TestClient(app) as client:
             response = client.post(
-                "/api/documents", files={"file": ("paper.pdf", synthetic_pdf(), "application/pdf")}
+                "/api/v1/documents",
+                    files={"file": ("paper.pdf", synthetic_pdf(), "application/pdf")}
             )
             assert response.status_code == 200
             document_id = response.json()["document_id"]
-            assert client.get(f"/api/documents/{document_id}").json() == response.json()
+            assert client.get(f"/api/v1/documents/{document_id}").json() == response.json()
             assert (
-                client.post("/api/documents", files={"file": ("fake.pdf", b"invalid")}).status_code
+                client.post(
+                    "/api/v1/documents", files={"file": ("fake.pdf", b"invalid")}
+                ).status_code
                 == 422
             )
     finally:

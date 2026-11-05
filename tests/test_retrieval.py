@@ -151,8 +151,11 @@ def test_knowledge_http_validation_and_missing_database():
     app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, database_url=None)
     try:
         with TestClient(app) as client:
-            assert client.post("/api/knowledge/search", json={"question": " "}).status_code == 422
-            response = client.post("/api/knowledge/search", json={"question": "test"})
+            assert (
+                client.post("/api/v1/knowledge/search", json={"question": " "}).status_code
+                == 422
+            )
+            response = client.post("/api/v1/knowledge/search", json={"question": "test"})
             assert response.status_code == 503
             assert response.json()["error"]["code"] == "database_not_configured"
     finally:

@@ -1,15 +1,22 @@
-"""检查数据库与外部服务配置的就绪状态，返回可安全展示的检查结果。"""
+"""进程存活与就绪检查。"""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from app import __version__
 from app.core.config import Settings, get_settings
 from app.core.errors import ServiceError
 from app.services.vector_store import VectorStore
 
 router = APIRouter(tags=["health"])
+
+
+@router.get("/health")
+def health() -> dict[str, str]:
+    """Liveness only: does not claim that external APIs or PostgreSQL are ready."""
+    return {"status": "ok", "version": __version__}
 
 
 @router.get("/health/ready")

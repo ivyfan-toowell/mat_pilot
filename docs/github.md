@@ -15,11 +15,17 @@ Docker 具名卷也不会随代码上传。`.env.example` 仅包含变量名和�
 ## 克隆后运行
 
 1. 安装 Python 3.13、uv、Docker Desktop 和 Git。
-2. 克隆仓库并进入项目根目录，执行 `uv sync --locked --extra ui --extra postgres`。
-3. 将 `.env.example` 复制为 `.env`，在本地填写自己的服务密钥，不要提交 `.env`。
-4. 按 README 启动数据库、API 和界面。新数据库为空；样例论文可用项目脚本重新下载和解析。
-5. 运行检索评测时，通过 `--document-id` 传入自己导入的文献 UUID；脚本会核对
+2. 克隆仓库并进入项目根目录，执行 `uv sync --locked --all-extras`。
+3. 将 `.env.example` 复制为 `.env`，在本地填写密钥，不要提交 `.env`。
+4. 按 README「配置服务 / 迁移顺序」执行：`setup_database` →（可选）`migrate_tenant_local`
+   → `docker compose up -d --wait db` → schema（`SCHEMA_AUTO_APPLY` 或 `apply_schema` /
+   `alembic upgrade head`）→（可选）`migrate_docs_to_postgres`。
+5. 启动 API 与 Streamlit。共享部署时设置 `AUTH_MODE=api_key`、`AUTH_API_KEYS`，
+   并为界面配置同值 `MATPILOT_API_KEY`；建议 `RATE_LIMIT_PER_MINUTE>0`、`LOG_JSON=true`。
+6. 运行检索评测时，通过 `--document-id` 传入自己导入的文献 UUID；脚本会核对
    `eval/retrieval_pilot.json` 中的 PDF 哈希和原文标注，下载到不同版本的全文时需重新核对标注。
+
+新数据库为空；样例论文可用 `scripts.download_sample_paper` 重新下载和解析。
 
 ## 后续提交
 
@@ -27,7 +33,7 @@ Docker 具名卷也不会随代码上传。`.env.example` 仅包含变量名和�
 
 ```powershell
 git status --short
-git add app ui scripts tests docs eval .streamlit .env.example .gitignore .gitattributes .python-version README.md pyproject.toml uv.lock docker-compose.yml
+git add app ui scripts tests docs eval alembic .streamlit .env.example .gitignore .gitattributes .python-version README.md CHANGELOG.md pyproject.toml uv.lock docker-compose.yml alembic.ini
 git diff --cached --stat
 git diff --cached
 git commit -m "Describe the change"

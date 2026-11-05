@@ -2,42 +2,34 @@
 
 import math
 
-import httpx
-
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.schemas.retrieval import SearchHit
+from app.services.llm_client import LLMClient
 
 
 class RerankService:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.client = LLMClient(settings)
 
     def rank(self, question: str, hits: list[SearchHit], top_k: int) -> list[SearchHit]:
         if not hits:
             return []
         if not self.settings.dashscope_api_key:
             raise ServiceError("rerank_not_configured", "请配置 DASHSCOPE_API_KEY。", 503)
-        # Bound request size without silently truncating evidence; provider token limits apply.
         if len(hits) > 100 or any(len(hit.text) > 6000 for hit in hits):
             raise ServiceError("rerank_input_too_large", "重排候选过多或过长，请缩小文档块。", 422)
         count = min(top_k, len(hits))
         try:
-            with httpx.Client(timeout=60) as client:
-                response = client.post(
-                    self.settings.rerank_url,
-                    headers={
-                        "Authorization": "Bearer "
-                        + self.settings.dashscope_api_key.get_secret_value()
-                    },
-                    json={
-                        "model": self.settings.rerank_model,
-                        "input": {"query": question, "documents": [hit.text for hit in hits]},
-                        "parameters": {"top_n": count, "return_documents": False},
-                    },
-                )
-                response.raise_for_status()
-                rows = response.json()["output"]["results"]
+            payload = self.client.rerank(
+                {
+                    "model": self.settings.rerank_model,
+                    "input": {"query": question, "documents": [hit.text for hit in hits]},
+                    "parameters": {"top_n": count, "return_documents": False},
+                }
+            )
+            rows = payload["output"]["results"]
             if not isinstance(rows, list) or len(rows) != count:
                 raise ValueError("incomplete rerank result")
             ranked = []
@@ -57,7 +49,9 @@ class RerankService:
                 seen.add(index)
                 ranked.append(hits[index].model_copy(update={"rerank_score": float(score)}))
             return sorted(ranked, key=lambda hit: -hit.rerank_score)
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        except ServiceError:
+            raise
+        except (ValueError, KeyError, TypeError) as exc:
             raise ServiceError(
                 "rerank_failed", "重排请求失败或结果无效，请检查模型权限、地域与接口配置。"
             ) from exc
