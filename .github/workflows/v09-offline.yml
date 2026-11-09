@@ -4,18 +4,39 @@ on:
     branches: [feature/v0.9-research-analysis]
   pull_request:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   offline-checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
           enable-cache: true
       - name: Sync locked dependencies
         run: uv sync --locked --all-extras
+      - name: Normalize changed Python files on feature branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/v0.9-research-analysis'
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.py')
+          if (( ${#files[@]} > 0 )); then
+            uv run --locked --all-extras ruff check --fix "${files[@]}" || true
+            uv run --locked --all-extras ruff format "${files[@]}"
+          fi
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- "${files[@]}"
+            git commit -m "style(v0.9): autoformat changed Python files"
+            git push origin HEAD:feature/v0.9-research-analysis
+          fi
       - name: Offline tests
         run: uv run --locked --all-extras pytest -q
       - name: Ruff
