@@ -1,6 +1,7 @@
 """科研助手允许调用的工具模式、描述与执行入口。"""
 
 from pathlib import Path
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,16 @@ from app.services.document_service import DocumentService
 from app.services.literature_service import LiteratureService
 from app.services.material_service import QueryStore
 from app.services.rag_service import RagService
+
+
+class KnowledgeQuery(BaseModel):
+    document_id: UUID | None = None
+    formula: str | None = None
+    limit: int = Field(default=12, ge=1, le=20)
+
+
+class ObservationSelectionRequest(BaseModel):
+    observation_ids: list[UUID] = Field(min_length=2, max_length=12)
 
 
 class PaperSearch(BaseModel):
@@ -47,6 +58,9 @@ TOOL_MODELS = {
     "search_papers": PaperSearch,
     "read_experiments": NoArguments,
     "search_academic_papers": LiteratureQuery,
+    "query_experiment_knowledge": KnowledgeQuery,
+    "compare_experimental_records": ObservationSelectionRequest,
+    "build_cross_paper_analysis": ObservationSelectionRequest,
 }
 DESCRIPTIONS = {
     "get_material_details": "按单个 MP-ID 实时获取材料的计算属性及其来源。",
@@ -56,6 +70,9 @@ DESCRIPTIONS = {
     "search_papers": "检索带页码的论文原文证据；已选择文献时仅检索该文献。",
     "read_experiments": "读取所选论文中已提取的实验估计值；缺失的方法或条件保持为 null，"
     "结果仍可能需要科研审核。",
+    "query_experiment_knowledge": "查询结构化实验记录。未人工审核的数据须明确标注。",
+    "compare_experimental_records": "对指定实验记录进行确定性可比性检查，不能推断因果。",
+    "build_cross_paper_analysis": "根据指定实验记录生成带证据的 Markdown 对照报告。",
     "search_academic_papers": "在线检索 OpenAlex 论文元数据，包括标题、DOI、作者、年份和访问链接。"
     "该工具不读取全文，不能据此确认实验测量值。"
     "请使用简短的英文科研关键词或 DOI 检索，不得编造作者或标识符。",
@@ -97,13 +114,36 @@ def execute_tool(
     if name not in TOOL_MODELS:
         raise ServiceError("unknown_tool", "工具不在允许调用的列表中。", 422)
     params = TOOL_MODELS[name].model_validate(arguments)
+    if name in {
+        "query_experiment_knowledge",
+        "compare_experimental_records",
+        "build_cross_paper_analysis",
+    }:
+        from app.services.cross_paper_report import build_analysis, render_markdown
+        from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
+
+        store = ExperimentalKnowledgeStore(settings, tenant_id)
+        if name == "query_experiment_knowledge":
+            return [
+                item.model_dump(mode="json")
+                for item in store.list(
+                    document_id=params.document_id, formula=params.formula, limit=params.limit
+                )
+            ]
+        records = [store.get(record_id) for record_id in params.observation_ids]
+        report = build_analysis(records)
+        if name == "compare_experimental_records":
+            return report.model_dump(mode="json")
+        return {"report": render_markdown(report)}
     if name == "search_academic_papers":
         return LiteratureService(settings, tenant_id).search(params).model_dump(mode="json")
     if name == "compare_materials":
         return compare_materials(params, settings, tenant_id=tenant_id)
     if name == "get_material_details":
         return (
-            MaterialsProjectService(settings).get_details(params.material_id).model_dump(mode="json")
+            MaterialsProjectService(settings)
+            .get_details(params.material_id)
+            .model_dump(mode="json")
         )
     if name == "search_materials":
         params.limit = min(params.limit, 10)

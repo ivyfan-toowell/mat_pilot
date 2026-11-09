@@ -15,9 +15,12 @@ from app.core.config import Settings, tenant_data_dir
 from app.core.errors import ServiceError
 from app.core.io import atomic_write_text
 from app.ingestion.extractor import ExperimentExtractor
+from app.ingestion.structured_extractor import StructuredExperimentExtractor
 from app.schemas.agent import AgentRequest
 from app.schemas.job import JobKind, JobRecord
 from app.services.document_service import DocumentService
+from app.services.evidence_audit import audit_observation
+from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
 from app.services.rag_service import RagService
 
 logger = logging.getLogger(__name__)
@@ -86,6 +89,19 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
                 tenant_data_dir(settings, tenant_id), settings, tenant_id
             ).load(document_id)
             job.result = RagService(settings, tenant_id).index(document)
+        elif job.kind == "document_mineru_reparse":
+            document_id = UUID(str(job.request["document_id"]))
+            parsed = DocumentService(
+                tenant_data_dir(settings, tenant_id), settings, tenant_id
+            ).reparse_with_mineru(document_id)
+            job.result = {
+                "document_id": str(parsed.document_id),
+                "previous_document_id": str(document_id),
+                "title": parsed.title,
+                "page_count": parsed.page_count,
+                "blocks": len(parsed.blocks),
+                "warnings": parsed.warnings,
+            }
         elif job.kind == "experiment_extract":
             document_id = UUID(str(job.request["document_id"]))
             document = DocumentService(
@@ -93,6 +109,34 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
             ).load(document_id)
             extraction = ExperimentExtractor(settings, tenant_id).extract(document)
             job.result = extraction.model_dump(mode="json")
+        elif job.kind == "structured_experiment_extract":
+            document_id = UUID(str(job.request["document_id"]))
+            document = DocumentService(
+                tenant_data_dir(settings, tenant_id), settings, tenant_id
+            ).load(document_id)
+            records, warnings = StructuredExperimentExtractor(settings, tenant_id).extract(document)
+            valid_records = []
+            for record in records:
+                audit = audit_observation(document, record)
+                if audit.valid:
+                    valid_records.append(record)
+                else:
+                    warnings.append(
+                        f"observation {record.observation_id}: 原文证据校验失败 "
+                        + ", ".join(audit.issues)
+                    )
+            records = valid_records
+            if records:
+                run_id = ExperimentalKnowledgeStore(settings, tenant_id).save(
+                    document_id, records, model=settings.llm_model
+                )
+                job.result = {"run_id": str(run_id), "stored": len(records), "warnings": warnings}
+            else:
+                job.result = {
+                    "run_id": None,
+                    "stored": 0,
+                    "warnings": warnings or ["没有足够证据支持的实验记录。"],
+                }
         else:
             raise ServiceError("unknown_job_kind", "不支持的任务类型。", 422)
         job.status = "succeeded"
@@ -126,9 +170,7 @@ class JobWorker:
             self._workers = max(1, workers)
         self._started = True
         for index in range(self._workers):
-            thread = threading.Thread(
-                target=self._loop, name=f"matpilot-job-{index}", daemon=True
-            )
+            thread = threading.Thread(target=self._loop, name=f"matpilot-job-{index}", daemon=True)
             thread.start()
             self._threads.append(thread)
 

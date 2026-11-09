@@ -14,12 +14,14 @@ def api_headers() -> dict[str, str]:
     key = os.getenv("MATPILOT_API_KEY", "").strip()
     return {"Authorization": f"Bearer {key}"} if key else {}
 
+
 WORKSPACES = {
     "材料筛选": ("materials", "tune"),
     "论文发现": ("discovery", "search"),
     "论文解析": ("documents", "description"),
     "文献知识库": ("knowledge", "local_library"),
     "科研助手": ("assistant", "auto_awesome"),
+    "实验知识库": ("experimental", "table_view"),
 }
 
 
@@ -128,9 +130,7 @@ def post_json(backend_url: str, path: str, payload: dict, timeout: int = 180) ->
     return response.json()
 
 
-def wait_job(
-    backend_url: str, job_id: str, timeout: int = 600, interval: float = 1.5
-) -> dict:
+def wait_job(backend_url: str, job_id: str, timeout: int = 600, interval: float = 1.5) -> dict:
     """Poll GET /api/v1/jobs/{id} until terminal state. Bypasses Streamlit cache."""
     deadline = time.monotonic() + timeout
     with httpx.Client(trust_env=False, timeout=30, headers=api_headers()) as client:

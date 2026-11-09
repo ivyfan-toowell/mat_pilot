@@ -17,6 +17,11 @@ class SourceBlock(BaseModel):
     section_title: str | None = None
     table_number: str | None = None
     rows: list[list[str | None]] | None = None
+    # Optional semantic metadata; old stored ParsedDocument JSON remains compatible.
+    role: Literal["title", "section", "paragraph", "table", "figure_caption", "formula"] = (
+        "paragraph"
+    )
+    section_path: list[str] = Field(default_factory=list)
 
 
 class ParsedDocument(BaseModel):
@@ -30,6 +35,8 @@ class ParsedDocument(BaseModel):
     source_url: str | None = None
     license: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    parser_engine: Literal["pymupdf", "mineru"] = "pymupdf"
+    parent_document_id: UUID | None = None
 
 
 class DocumentSummary(BaseModel):

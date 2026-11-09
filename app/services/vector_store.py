@@ -92,8 +92,8 @@ class VectorStore:
                 cursor.executemany(
                     """INSERT INTO mp_chunks
                     (chunk_id,document_id,block_id,page_number,kind,text,title,
-                     source_url,license,embedding,tenant_id)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                     source_url,license,section_path,source_block_ids,embedding,tenant_id)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     [
                         (
                             c.chunk_id,
@@ -105,6 +105,8 @@ class VectorStore:
                             c.title,
                             c.source_url,
                             c.license,
+                            Jsonb(c.section_path),
+                            Jsonb(c.source_block_ids),
                             np.array(v, dtype=np.float32),
                             self.tenant_id,
                         )
@@ -122,7 +124,8 @@ class VectorStore:
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT chunk_id,document_id,block_id,page_number,kind,
-                text,title,source_url,license,1-(embedding <=> %s) AS similarity
+                text,title,source_url,license,section_path,source_block_ids,
+                1-(embedding <=> %s) AS similarity
                 FROM mp_chunks WHERE tenant_id=%s
                 AND (%s::uuid IS NULL OR document_id=%s)
                 AND 1-(embedding <=> %s) >= %s ORDER BY embedding <=> %s LIMIT %s""",
@@ -144,7 +147,7 @@ class VectorStore:
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT chunk_id,document_id,block_id,page_number,kind,
-                text,title,source_url,license FROM mp_chunks
+                text,title,source_url,license,section_path,source_block_ids FROM mp_chunks
                 WHERE tenant_id=%s AND (%s::uuid IS NULL OR document_id=%s)
                 ORDER BY document_id, page_number, block_id, chunk_id LIMIT %s""",
                 (self.tenant_id, document_id, document_id, limit + 1),

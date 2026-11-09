@@ -12,6 +12,12 @@ import pdfplumber
 import pymupdf
 
 from app.core.errors import ServiceError
+from app.ingestion.pdf_layout import (
+    clean_native_text,
+    detect_paper_title,
+    improve_sections,
+    ordered_text_blocks,
+)
 from app.ingestion.table_parser import extract_caption_tables
 from app.schemas.document import ParsedDocument, SourceBlock
 
@@ -20,7 +26,7 @@ MAX_PDF_BYTES = 30 * 1024 * 1024
 
 
 def clean_text(text: str) -> str:
-    return re.sub(r"[ \t]+", " ", text.replace("\x00", "").replace("\u00ad", "")).strip()
+    return clean_native_text(text)
 
 
 def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
@@ -34,9 +40,9 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
             edge_counts: Counter[str] = Counter()
             warnings = []
             for index, page in enumerate(pdf):
-                raw_blocks = page.get_text("blocks", sort=True)
+                raw_blocks = ordered_text_blocks(page)
                 text_length = 0
-                for number, block in enumerate(raw_blocks):
+                for number, block in raw_blocks:
                     if block[6] != 0 or not block[4].strip():
                         continue
                     raw = block[4]
@@ -66,12 +72,11 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
                         text=text,
                         raw_text=block[4],
                         section_title=section,
+                        role="section" if text == section else "paragraph",
+                        section_path=[section] if section else [],
                     )
                 )
-            metadata_title = (pdf.metadata.get("title") or "").strip()
-            title = metadata_title or (
-                blocks[0].text.replace("\n", " ")[:250] if blocks else filename
-            )
+            title = detect_paper_title(pdf, filename)
             page_count = len(pdf)
         with pdfplumber.open(path) as tables_pdf:
             for index, page in enumerate(tables_pdf.pages):
@@ -116,6 +121,7 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
                                 raw_text=text,
                                 table_number=caption.group(1) if caption else None,
                                 rows=rows,
+                                role="table",
                             )
                         )
                 except Exception as exc:
@@ -126,6 +132,8 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
         blocks.extend(extract_caption_tables(path, blocks))
         if not blocks:
             warnings.append("未提取到文本或表格，请使用 OCR 解析器。")
+        blocks = sorted(blocks, key=lambda b: b.page_number)
+        improve_sections(blocks)
         return ParsedDocument(
             document_id=document_id,
             filename=filename,
@@ -133,8 +141,9 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
             sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
             page_count=page_count,
             parsed_at=datetime.now(UTC),
-            blocks=sorted(blocks, key=lambda b: (b.page_number, b.bbox[1])),
+            blocks=blocks,
             warnings=warnings,
+            parser_engine="pymupdf",
         )
     except ServiceError:
         raise

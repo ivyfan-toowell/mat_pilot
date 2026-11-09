@@ -16,9 +16,7 @@ class LLMClient:
     def _headers(self) -> dict[str, str]:
         if not self.settings.dashscope_api_key:
             raise ServiceError("llm_not_configured", "请配置 DASHSCOPE_API_KEY。", 503)
-        return {
-            "Authorization": "Bearer " + self.settings.dashscope_api_key.get_secret_value()
-        }
+        return {"Authorization": "Bearer " + self.settings.dashscope_api_key.get_secret_value()}
 
     def post_json(self, url: str, body: dict, *, error_code: str, error_message: str) -> dict:
         try:
@@ -26,7 +24,33 @@ class LLMClient:
                 response = client.post(url, headers=self._headers(), json=body)
                 response.raise_for_status()
                 return response.json()
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        except httpx.HTTPStatusError as exc:
+            # Expose only HTTP status and a safe action; never echo the provider's
+            # response body, request headers, prompt, or credentials.
+            status = exc.response.status_code
+            if error_code == "llm_failed":
+                explanations = {
+                    400: "模型请求参数不被支持，请检查模型名称及 JSON 输出模式。",
+                    401: "模型鉴权失败，请检查 DASHSCOPE_API_KEY。",
+                    403: "模型访问被拒绝，请检查账号权限和模型可用区域。",
+                    404: "模型接口或名称不存在，请检查 LLM_BASE_URL 和 LLM_MODEL。",
+                    429: "模型服务限流或额度不足，请检查配额及请求频率。",
+                }
+                detail = explanations.get(
+                    status,
+                    "模型服务端暂时不可用，请稍后重试。"
+                    if status >= 500
+                    else "模型请求被拒绝，请检查服务配置。",
+                )
+                raise ServiceError("llm_http_error", f"{detail}（HTTP {status}）") from exc
+            raise ServiceError(error_code, f"{error_message}（HTTP {status}）") from exc
+        except httpx.TimeoutException as exc:
+            if error_code == "llm_failed":
+                raise ServiceError(
+                    "llm_timeout", "模型响应超时，请检查网络连接或缩小请求内容。"
+                ) from exc
+            raise ServiceError(error_code, error_message) from exc
+        except (httpx.RequestError, ValueError, KeyError, TypeError) as exc:
             raise ServiceError(error_code, error_message) from exc
 
     def chat_completions(self, body: dict) -> dict:

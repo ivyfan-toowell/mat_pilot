@@ -51,8 +51,11 @@ def test_chunk_identity_page_overlap_and_intact_table():
     chunks = chunk_document(document, size=50, overlap=10)
     assert chunks == chunk_document(document, size=50, overlap=10)
     assert len({chunk.chunk_id for chunk in chunks}) == len(chunks)
-    assert chunks[0].text[-10:] == chunks[1].text[:10]
-    assert chunks[-1].text == document.blocks[-1].text.strip()
+    # V0.10 adds source markers before each paragraph; overlap applies to
+    # original text, not to the provenance marker itself.
+    assert chunks[0].text[-10:] == chunks[1].text.split("\n", 1)[1][:10]
+    assert chunks[-1].text.endswith(document.blocks[-1].text.strip())
+    assert chunks[-1].source_block_ids == ["p2-table"]
     assert chunks[-1].page_number == 2 and chunks[0].page_number == 1
     assert all(chunk.document_id == document.document_id for chunk in chunks)
     with pytest.raises(ValueError):
@@ -152,8 +155,7 @@ def test_knowledge_http_validation_and_missing_database():
     try:
         with TestClient(app) as client:
             assert (
-                client.post("/api/v1/knowledge/search", json={"question": " "}).status_code
-                == 422
+                client.post("/api/v1/knowledge/search", json={"question": " "}).status_code == 422
             )
             response = client.post("/api/v1/knowledge/search", json={"question": "test"})
             assert response.status_code == 503

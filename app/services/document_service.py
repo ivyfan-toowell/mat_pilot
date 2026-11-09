@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from app.core.config import LOCAL_TENANT_ID, Settings
 from app.core.errors import ServiceError
+from app.ingestion.mineru_parser import parse_mineru
 from app.ingestion.pdf_parser import MAX_PDF_BYTES, as_markdown, parse_pdf
 from app.schemas.document import ParsedDocument
 from app.schemas.experiment import ExtractionResult
@@ -34,6 +35,8 @@ class DocumentService:
         filename: str,
         source_url: str | None = None,
         license_name: str | None = None,
+        parser_engine: str = "pymupdf",
+        parent_document_id: UUID | None = None,
     ) -> ParsedDocument:
         if len(data) > MAX_PDF_BYTES:
             raise ServiceError("file_too_large", "PDF 不能超过 30 MB。", 413)
@@ -45,7 +48,26 @@ class DocumentService:
         original = folder / "original.pdf"
         original.write_bytes(data)
         try:
-            document = parse_pdf(original, document_id, filename.replace("\\", "/").split("/")[-1])
+            safe_name = filename.replace("\\", "/").split("/")[-1]
+            if parser_engine == "pymupdf":
+                document = parse_pdf(original, document_id, safe_name)
+            elif parser_engine == "mineru":
+                if self.settings is None or self.settings.mineru_cli_path is None:
+                    raise ServiceError(
+                        "mineru_not_configured",
+                        "请在 .env 设置 MINERU_CLI_PATH，指向独立 MinerU 环境。",
+                        503,
+                    )
+                document = parse_mineru(
+                    original,
+                    document_id,
+                    safe_name,
+                    self.settings.mineru_cli_path,
+                    self.settings.mineru_timeout_seconds,
+                )
+            else:
+                raise ServiceError("unknown_parser", "不支持的 PDF 解析引擎。", 422)
+            document.parent_document_id = parent_document_id
             document.source_url = source_url
             document.license = license_name
             self._persist_document(document, folder)
@@ -56,6 +78,27 @@ class DocumentService:
                 encoding="utf-8",
             )
             raise
+
+    def reparse_with_mineru(self, document_id: UUID) -> ParsedDocument:
+        """Create a new document version; never invalidate existing evidence IDs.
+
+        Existing indexed chunks, experiments and human reviews remain on the old
+        document. Users can compare the two versions before reindexing.
+        """
+        original_doc = self.load(document_id)  # tenant check before filesystem access
+        source = self.directory / str(document_id) / "original.pdf"
+        try:
+            data = source.read_bytes()
+        except FileNotFoundError as exc:
+            raise ServiceError("source_pdf_missing", "原始 PDF 不存在，请重新上传。", 404) from exc
+        return self.ingest(
+            data,
+            original_doc.filename,
+            original_doc.source_url,
+            original_doc.license,
+            parser_engine="mineru",
+            parent_document_id=document_id,
+        )
 
     def load(self, document_id: UUID) -> ParsedDocument:
         # With DATABASE_URL, Postgres is SSOT — do not silently fall back to stale JSON.

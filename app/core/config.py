@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     mp_timeout_seconds: int = Field(default=30, ge=1, le=120)
     backend_url: str = "http://127.0.0.1:8000"
+    # MinerU is intentionally external: do not install its GPU stack in MatPilot.
+    mineru_cli_path: Path | None = None
+    mineru_timeout_seconds: int = Field(default=1800, ge=60, le=7200)
 
     @field_validator("data_dir")
     @classmethod

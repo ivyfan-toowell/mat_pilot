@@ -14,9 +14,19 @@ ToolName = Literal[
     "search_papers",
     "read_experiments",
     "search_academic_papers",
+    "query_experiment_knowledge",
+    "compare_experimental_records",
+    "build_cross_paper_analysis",
 ]
 MATERIAL_TOOLS = {"search_materials", "get_material_details", "get_structure", "compare_materials"}
-LITERATURE_TOOLS = {"search_papers", "read_experiments", "search_academic_papers"}
+LITERATURE_TOOLS = {
+    "search_papers",
+    "read_experiments",
+    "search_academic_papers",
+    "query_experiment_knowledge",
+    "compare_experimental_records",
+    "build_cross_paper_analysis",
+}
 
 
 class AgentCheckpoint(BaseModel):
@@ -46,8 +56,11 @@ class AgentRequest(BaseModel):
             "search_papers",
             "read_experiments",
             "search_academic_papers",
+            "query_experiment_knowledge",
+            "compare_experimental_records",
+            "build_cross_paper_analysis",
         ]
-    ] = Field(default_factory=list, max_length=7)
+    ] = Field(default_factory=list, max_length=10)
 
 
 class ToolRecord(BaseModel):

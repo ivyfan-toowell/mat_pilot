@@ -16,6 +16,8 @@ class Chunk(BaseModel):
     title: str
     source_url: str | None = None
     license: str | None = None
+    section_path: list[str] = Field(default_factory=list)
+    source_block_ids: list[str] = Field(default_factory=list)
 
 
 class SearchRequest(BaseModel):

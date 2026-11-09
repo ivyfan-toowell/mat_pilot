@@ -40,7 +40,10 @@ def apply_schema(settings: Settings) -> None:
             document_id uuid NOT NULL REFERENCES mp_documents ON DELETE CASCADE,
             block_id text NOT NULL, page_number integer NOT NULL,
             kind text NOT NULL, text text NOT NULL, title text NOT NULL,
-            source_url text, license text, embedding vector({}),
+            source_url text, license text,
+            section_path jsonb NOT NULL DEFAULT '[]'::jsonb,
+            source_block_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+            embedding vector({}),
             tenant_id text NOT NULL DEFAULT 'local')""").format(
                 sql.Literal(settings.embedding_dimensions)
             )
@@ -50,11 +53,55 @@ def apply_schema(settings: Settings) -> None:
             "NOT NULL DEFAULT 'local'",
             "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS tenant_id text "
             "NOT NULL DEFAULT 'local'",
+            "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS section_path jsonb "
+            "NOT NULL DEFAULT '[]'::jsonb",
+            "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS source_block_ids jsonb "
+            "NOT NULL DEFAULT '[]'::jsonb",
             "CREATE INDEX IF NOT EXISTS mp_docs_tenant ON mp_docs(tenant_id)",
             "CREATE INDEX IF NOT EXISTS mp_experiments_tenant ON mp_experiments(tenant_id)",
             "CREATE INDEX IF NOT EXISTS mp_chunks_document ON mp_chunks(document_id)",
             "CREATE INDEX IF NOT EXISTS mp_documents_tenant ON mp_documents(tenant_id)",
             "CREATE INDEX IF NOT EXISTS mp_chunks_tenant ON mp_chunks(tenant_id)",
+        ):
+            conn.execute(statement)
+        # V0.9: additive, tenant-scoped experimental evidence knowledge.
+        conn.execute("""CREATE TABLE IF NOT EXISTS mp_knowledge_runs (
+            run_id uuid PRIMARY KEY,
+            tenant_id text NOT NULL,
+            document_id uuid NOT NULL REFERENCES mp_docs(document_id),
+            model text NOT NULL,
+            status text NOT NULL,
+            created_at timestamptz NOT NULL DEFAULT now())""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS mp_knowledge_observations (
+            observation_id uuid PRIMARY KEY,
+            tenant_id text NOT NULL,
+            document_id uuid NOT NULL REFERENCES mp_docs(document_id),
+            run_id uuid NOT NULL REFERENCES mp_knowledge_runs(run_id),
+            formula text,
+            property_name text NOT NULL,
+            verification_status text NOT NULL,
+            observation jsonb NOT NULL,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now())""")
+        conn.execute("""CREATE TABLE IF NOT EXISTS mp_knowledge_reviews (
+            review_id uuid PRIMARY KEY,
+            tenant_id text NOT NULL,
+            observation_id uuid NOT NULL REFERENCES mp_knowledge_observations(observation_id),
+            decision text NOT NULL,
+            note text NOT NULL,
+            reviewer text NOT NULL,
+            reviewed_at timestamptz NOT NULL DEFAULT now())""")
+        for statement in (
+            "CREATE INDEX IF NOT EXISTS mp_kr_tenant_doc "
+            "ON mp_knowledge_runs(tenant_id,document_id)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_doc "
+            "ON mp_knowledge_observations(tenant_id,document_id)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_formula "
+            "ON mp_knowledge_observations(tenant_id,formula)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_status "
+            "ON mp_knowledge_observations(tenant_id,verification_status)",
+            "CREATE INDEX IF NOT EXISTS mp_krev_tenant_obs "
+            "ON mp_knowledge_reviews(tenant_id,observation_id)",
         ):
             conn.execute(statement)
         if settings.vector_hnsw:

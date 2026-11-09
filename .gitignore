@@ -90,3 +90,6 @@ Desktop.ini
 /scripts/stage_codex_update.py
 /scripts/verify_elevated_sandbox.py
 /scripts/runtime-acl-backup-*.json
+
+# Optional local MinerU GPU benchmark; never commit its environment or PDF outputs.
+/matpilot_parser_benchmark/

@@ -104,3 +104,22 @@ Agent 的 question、document_id、max_steps（1–6）和 required_tools 控制
 
 目录接口最多检查最近 500 个候选归档，忽略损坏、标识不匹配和非最终任务文件。完整原件、候选、失败记录保持原位；旧任务仍可通过已知 ID 回读。
 默认 `AUTH_MODE=off` 使用租户 `local`；`api_key` 模式下按租户隔离，目录与向量均不可跨租户读取。
+
+
+## V0.9 实验知识库 API（新增）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/jobs/experimental-knowledge/extract` | 异步样品级结构化提取；Body `{"document_id":"UUID"}` |
+| POST | `/api/v1/experimental-knowledge/documents/{document_id}/extract` | 同步提取，用于脚本/调试 |
+| GET | `/api/v1/experimental-knowledge/observations` | `document_id`、`formula`、`status`、`limit`、`offset` |
+| GET | `/api/v1/experimental-knowledge/observations/{observation_id}` | 单条记录与字段原文证据 |
+| POST | `/api/v1/experimental-knowledge/observations/{observation_id}/review` | `{"decision":"human_verified","reviewer":"...","note":"..."}`，或 rejected |
+| POST | `/api/v1/experimental-knowledge/compare` | `{"observation_ids":["UUID-1","UUID-2"]}` |
+| POST | `/api/v1/experimental-knowledge/report?format=markdown` | 同上 Body，文本 Markdown；也可 `format=csv` |
+
+该组 API 复用现有 Bearer 租户身份。昂贵模型提取建议使用异步 job。
+列表只显示当前租户，人工审核和导出不得越过租户隔离。
+结构化数值来自论文原文，实验与 Materials Project 计算带隙分开存储。
+Review 意味着人工确认，模型自己不能自动授予。
+更多限制详见 [V0.9 使用说明](v0.9/usage.md)。

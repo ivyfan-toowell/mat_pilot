@@ -1,0 +1,31 @@
+{
+  "description": "Manually annotated ground truth; empty by default, not an accuracy claim.",
+  "material_scope": "TiO2 optical_band_gap",
+  "documents": [],
+  "annotations": [],
+  "annotation_schema": {
+    "document_id": "UUID",
+    "document_sha256": "SHA256",
+    "sample_label": "verbatim",
+    "formula": "verbatim",
+    "phase": "reported | ambiguous | not_extracted",
+    "preparation_temperature": "value and unit with page/block/line reference",
+    "measurement_technique": "verbatim and cited",
+    "analysis_method": "verbatim and cited",
+    "transition_assumption": "verbatim and cited",
+    "optical_band_gap_eV": "number from paper",
+    "property_source": "document_id + block_id + page + selected lines",
+    "linkage_status": "verified | ambiguous | rejected",
+    "annotator": "human id",
+    "reviewer": "independent human id"
+  },
+  "metrics_to_compute_after_annotation": [
+    "sample_link_precision",
+    "property_precision",
+    "condition_link_precision",
+    "citation_support_rate",
+    "pairwise_comparability_agreement",
+    "human_baseline_minutes",
+    "assisted_workflow_minutes"
+  ]
+}

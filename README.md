@@ -146,10 +146,13 @@ uv run --locked --all-extras uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ### 4. 启动界面
 
+统一从仓库根目录的 `streamlit_app.py` 启动；Windows 也可直接运行 `./start_ui.ps1`。两种方式都不依赖临时设置 `PYTHONPATH`。原 `ui/app.py` 入口同样保留兼容性修复。
+
+
 新开终端并进入同一个项目目录：
 
 ~~~powershell
-uv run --locked --all-extras streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
+uv run --locked --all-extras streamlit run streamlit_app.py --server.address 127.0.0.1 --server.port 8501
 ~~~
 
 - 科研工作台：[http://127.0.0.1:8501](http://127.0.0.1:8501)
@@ -272,3 +275,27 @@ uv lock --check
 - [论文发现](docs/literature.md) · [文献检索与评测](docs/retrieval.md) · [多角色协作](docs/collaboration.md)
 - [UI / UX 设计规范](docs/design/ui-ux-proposal.md) · [开发记录](docs/development.md)
 - [项目任务书与路线](docs/taskbook.md) · [仓库维护](docs/github.md)
+
+
+## V0.9 跨论文实验知识分析（开发分支）
+
+V0.9 新增样品级光学带隙提取、实验知识库（PostgreSQL JSONB）、字段级原文证据、
+规则式可比性判断、人工审核、Markdown/CSV 导出及 Streamlit “实验知识库”工作区。
+初期仅支持文本 PDF 的实验光学带隙，**不推断因果关系或材料机理**。
+可在原五个工作区外选择新入口，原有单 Agent、协作 Agent 和 Materials Project 仍可使用。
+
+- [操作和 API](docs/v0.9/usage.md)
+- [基线与差距](docs/v0.9/baseline.md)
+- [分阶段验收](docs/v0.9/acceptance.md)
+- [科研局限](docs/v0.9/limitations.md)
+
+完整真实科研验证仍需用户在本机导入具有许可的论文、运行模型和数据库，并建立独立人工标注数据集。
+
+
+## V0.10 PDF 版面解析增强（开发分支）
+
+默认使用改进版 PyMuPDF 快速读取 PDF：全角归一化、页眉页脚过滤、字体标题检测、基础双栏排序、章节识别与按段落/句子进行的来源块级 Chunk 切分。复杂科研 PDF 可在“论文解析”中，对已上传的文献点击“**使用 MinerU 重新解析所选论文**”，通过后台任务调用独立安装的 MinerU 4.x，并从 ZIP 结构化数据读取页码与文本块位置。不会将图片 Base64 导入向量库。
+
+MinerU 环境独立于 MatPilot Python 3.13 主环境，按需设置 `MINERU_CLI_PATH` 指向 `mineru-kit.exe`，并重新启动 8000 后端。高精度解析会创建**新文献版本**，不覆盖旧实验结果和人审记录；新文献需要重新建索引、核查证据。
+
+具体配置、接口、限制与验收说明见 [MinerU 集成说明](docs/v0.10/mineru-integration.md)。当前 ZIP 结构兼容及 Chunk 已有离线测试，真实本地 MinerU 与数据库联调仍需执行。
