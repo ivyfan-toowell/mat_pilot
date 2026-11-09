@@ -4,6 +4,9 @@ on:
     branches: [feature/v0.9-research-analysis]
   pull_request:
     branches: [main]
+concurrency:
+  group: v09-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
