@@ -88,6 +88,19 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
                 tenant_data_dir(settings, tenant_id), settings, tenant_id
             ).load(document_id)
             job.result = RagService(settings, tenant_id).index(document)
+        elif job.kind == "document_mineru_reparse":
+            document_id = UUID(str(job.request["document_id"]))
+            parsed = DocumentService(
+                tenant_data_dir(settings, tenant_id), settings, tenant_id
+            ).reparse_with_mineru(document_id)
+            job.result = {
+                "document_id": str(parsed.document_id),
+                "previous_document_id": str(document_id),
+                "title": parsed.title,
+                "page_count": parsed.page_count,
+                "blocks": len(parsed.blocks),
+                "warnings": parsed.warnings,
+            }
         elif job.kind == "experiment_extract":
             document_id = UUID(str(job.request["document_id"]))
             document = DocumentService(
