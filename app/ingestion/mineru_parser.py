@@ -155,14 +155,18 @@ def _bounds(block: dict, page_size: tuple[float, float]) -> tuple[float, float, 
     # DocVortex 2.0 MiddleJson PDF bbox is normalized to [0, 1].
     if all(0 <= value <= 1 for value in values):
         return (
-            values[0] * width, values[1] * height,
-            values[2] * width, values[3] * height,
+            values[0] * width,
+            values[1] * height,
+            values[2] * width,
+            values[3] * height,
         )
     # Structured Content's explicit normalized representation uses 0–1000.
     if structured_normalized and all(0 <= value <= 1000 for value in values):
         return (
-            values[0] * width / 1000, values[1] * height / 1000,
-            values[2] * width / 1000, values[3] * height / 1000,
+            values[0] * width / 1000,
+            values[1] * height / 1000,
+            values[2] * width / 1000,
+            values[3] * height / 1000,
         )
     # Historical MinerU middle-json only: absolute PDF page coordinates.
     if structured_normalized or values[2] > width + 2 or values[3] > height + 2:
@@ -202,9 +206,7 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
         raise ServiceError(
             "mineru_invalid_result", "MinerU 没有返回可用的结构化页码数据。", 422
         ) from exc
-    if isinstance(payload, dict) and payload.get("schema") not in (
-        None, "docvortex.middle"
-    ):
+    if isinstance(payload, dict) and payload.get("schema") not in (None, "docvortex.middle"):
         raise ServiceError(
             "mineru_invalid_result", "MinerU 输出了非 MiddleJson 协议，不能作为原文证据。", 422
         )

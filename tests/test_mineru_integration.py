@@ -180,9 +180,7 @@ def test_docvortex_middle_v2_normalized_bbox_and_inline_content(tmp_path):
                         "type": "text",
                         "index": 1,
                         "bbox": [0.1, 0.2, 0.5, 0.3],
-                        "content": [
-                            {"type": "text", "content": "3.98 eV"}
-                        ],
+                        "content": [{"type": "text", "content": "3.98 eV"}],
                     },
                 ],
             }
