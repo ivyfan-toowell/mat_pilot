@@ -7,6 +7,8 @@ be verified are not published. No OCR / chart digitization is performed.
 from __future__ import annotations
 
 import json
+import logging
+import re
 from uuid import uuid5
 
 from pydantic import BaseModel, Field, ValidationError
@@ -18,6 +20,8 @@ from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, Exper
 from app.schemas.selection import BlockSelection
 from app.services.chat_service import ChatService
 from app.services.evidence_service import copy_range
+
+logger = logging.getLogger(__name__)
 
 FIELD_NAMES = (
     "local_sample_label",
@@ -90,8 +94,6 @@ def extract_from_selections(
                     fields[key] = EvidenceField(status=f.status)
             property_refs = [quote(span) for span in item.property_spans]
             combined = " ".join(ref.quote for ref in property_refs)
-            import re
-
             numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", combined)
             if not any(abs(float(n) - item.property_value) < 1e-8 for n in numbers):
                 raise ValueError("property_value not in evidence")
@@ -130,22 +132,39 @@ class StructuredExperimentExtractor:
             raise ServiceError("llm_not_configured", "缺少模型配置。", 503)
         from app.services.evidence_service import source_lines
 
-        context, used = [], 0
-        for block in document.blocks:
-            text = block.text
-            if used + len(text) > 40000:
-                continue
-            used += len(text)
-            context.append(
-                {
-                    "block_id": block.block_id,
-                    "page": block.page_number,
-                    "kind": block.kind,
-                    "lines": source_lines(text),
-                }
+        # Prefer experimentally relevant blocks over the first 40k characters.
+        signal = re.compile(
+            r"band.?gap|optical|uv.vis|diffuse reflect|tauc|kubelka|"
+            r"anneal|calcination|hydrothermal|synthesi|sample|"
+            r"\beV\b|table|phase|characterization",
+            re.IGNORECASE,
+        )
+        candidates = [
+            block for block in document.blocks
+            if block.kind == "table" or signal.search(block.text)
+        ]
+        if not candidates:
+            raise ServiceError(
+                "no_extraction_evidence",
+                "未定位到可能包含光学带隙实验信息的原文，请先检查 PDF 解析质量。",
+                422,
             )
+        context, used = [], 0
+        budget = 18000
+        for block in candidates:
+            entry = {
+                "block_id": block.block_id,
+                "page": block.page_number,
+                "kind": block.kind,
+                "lines": source_lines(block.text),
+            }
+            size = len(json.dumps(entry, ensure_ascii=False))
+            if size > budget or used + size > budget:
+                continue
+            context.append(entry)
+            used += size
         if not context:
-            raise ServiceError("document_empty", "无可用论文文本。", 422)
+            raise ServiceError("document_empty", "相关原文片段超过提取长度限制。", 422)
         prompt = (
             "提取论文自身实验光学带隙，严格按 JSON Schema 输出。"
             "每个 observation 对应一个论文内部样品的一次实验测量。"
@@ -167,12 +186,39 @@ class StructuredExperimentExtractor:
                 ],
                 json_output=True,
             )
-            selections = ExtractionSelection.model_validate_json(response["content"])
-        except (ServiceError, ValidationError, ValueError, KeyError, TypeError) as exc:
+            payload = response.get("content")
+            if not isinstance(payload, str) or not payload.strip():
+                raise ServiceError(
+                    "structured_extraction_empty_response",
+                    "模型未返回有效的结构化内容；请检查模型兼容性及生成长度限制。",
+                    502,
+                )
+            try:
+                selections = ExtractionSelection.model_validate_json(payload)
+            except ValidationError as exc:
+                logger.warning(
+                    "structured extraction schema mismatch document_id=%s errors=%s",
+                    document.document_id,
+                    [error["type"] for error in exc.errors()][:8],
+                )
+                raise ServiceError(
+                    "structured_extraction_invalid_schema",
+                    "模型返回的 JSON 未满足实验字段结构要求，未写入数据。",
+                    502,
+                ) from exc
+        except ServiceError:
+            raise
+        except (ValueError, KeyError, TypeError) as exc:
+            logger.warning(
+                "structured extraction response error document_id=%s type=%s",
+                document.document_id, type(exc).__name__,
+            )
             raise ServiceError(
-                "structured_extraction_failed", "结构化提取失败，未写入数据。", 502
+                "structured_extraction_invalid_response",
+                "无法解析模型响应，未写入数据。",
+                502,
             ) from exc
         records, warnings = extract_from_selections(document, self.tenant_id, selections)
-        if used < sum(len(b.text) for b in document.blocks):
+        if len(context) < len(candidates):
             warnings.append("Document context truncated; output is not exhaustive.")
         return records, warnings
