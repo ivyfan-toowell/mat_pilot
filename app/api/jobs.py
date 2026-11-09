@@ -81,6 +81,23 @@ def enqueue_structured_extract(
     )
 
 
+@router.post(
+    "/documents/mineru-reparse",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def enqueue_mineru_reparse(
+    body: ExtractJobRequest,
+    response: Response,
+    settings: SettingsDep,
+    principal: PrincipalDep,
+) -> JobAccepted:
+    """Reparse an owned original PDF into a new document version."""
+    return _accept(
+        response, settings, principal, "document_mineru_reparse", body.model_dump(mode="json")
+    )
+
+
 @router.get("/{job_id}", response_model=JobRecord)
 def get_job(job_id: UUID, settings: SettingsDep, principal: PrincipalDep) -> JobRecord:
     return JobStore(tenant_data_dir(settings, principal.tenant_id)).load(job_id)
