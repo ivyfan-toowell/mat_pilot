@@ -56,6 +56,8 @@ def chunk_document(document: ParsedDocument, size: int = 1800, overlap: int = 20
         ids = [block_id for block_id, _ in parts]
         # A marker remains adjacent to each source paragraph for citation review.
         body = "\n\n".join(f"[来源块 {block_id}]\n{content}" for block_id, content in parts)
+        if path:
+            body = f"[章节路径 {' / '.join(path)}]\n" + body
         result.append(
             Chunk(
                 chunk_id=uuid5(
