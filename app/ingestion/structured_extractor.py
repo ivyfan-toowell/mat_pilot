@@ -14,7 +14,7 @@ from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
 from app.services.chat_service import ChatService
 from app.services.evidence_service import copy_range
-from app.schemas.selection import EvidenceRange
+from app.schemas.selection import BlockSelection
 
 FIELD_NAMES = (
     "local_sample_label", "formula", "phase", "doping", "preparation_method",
@@ -26,12 +26,12 @@ FIELD_NAMES = (
 class FieldSelection(BaseModel):
     value: str | None = None
     status: str = "not_extracted"
-    spans: list[EvidenceRange] = Field(default_factory=list)
+    spans: list[BlockSelection] = Field(default_factory=list)
 
 class ObservationSelection(BaseModel):
     fields: dict[str, FieldSelection]
     property_value: float = Field(ge=0)
-    property_spans: list[EvidenceRange] = Field(min_length=1, max_length=4)
+    property_spans: list[BlockSelection] = Field(min_length=1, max_length=4)
 
 class ExtractionSelection(BaseModel):
     observations: list[ObservationSelection] = Field(default_factory=list, max_length=40)
@@ -43,7 +43,7 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
     accepted: list[ExperimentalObservation] = []
     for position, item in enumerate(selections.observations):
         try:
-            def quote(span: EvidenceRange) -> EvidenceRef:
+            def quote(span: BlockSelection) -> EvidenceRef:
                 block = blocks[span.block_id]
                 text = copy_range(block.text, span, max_length=1800)
                 return EvidenceRef(document_id=document.document_id, block_id=block.block_id,
@@ -66,7 +66,7 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
             property_refs = [quote(span) for span in item.property_spans]
             combined = " ".join(ref.quote for ref in property_refs)
             import re
-            numbers = re.findall(r"(?<![A-Za-z0-9])\\d+(?:\\.\\d+)?", combined)
+            numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", combined)
             if not any(abs(float(n) - item.property_value) < 1e-8 for n in numbers):
                 raise ValueError("property_value not in evidence")
             if "eV" not in combined:
