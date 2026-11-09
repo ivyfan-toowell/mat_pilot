@@ -23,6 +23,7 @@ from uuid import UUID
 import pymupdf
 
 from app.core.errors import ServiceError
+from app.ingestion.pdf_layout import is_section
 from app.schemas.document import ParsedDocument, SourceBlock
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,10 @@ def _block_text(block: dict) -> str:
             nested = _block_text(value)
             if nested:
                 return nested
+    if isinstance(block.get("content_list"), list):
+        content = _plain(block["content_list"])
+        if content:
+            return content
     if "lines" in block:
         lines = []
         for line in block["lines"]:
@@ -142,16 +147,11 @@ def _bounds(block: dict, page_size: tuple[float, float]) -> tuple[float, float, 
     values = tuple(float(v) for v in raw)
     if not (0 <= values[0] <= values[2] and 0 <= values[1] <= values[3]):
         raise ValueError("MinerU bbox is invalid")
-    # In middle_json, the coordinate system is page-based; normalize only
-    # boxes that exceed the original page. Never invent positions for absent bbox.
+    # MinerU's bbox should be in PDF-page coordinates. Never silently rescale
+    # ambiguous coordinates; an incorrect bbox would falsify evidence location.
     width, height = page_size
-    if values[2] > width * 1.15 or values[3] > height * 1.15:
-        return (
-            values[0] * width / 1000,
-            values[1] * height / 1000,
-            values[2] * width / 1000,
-            values[3] * height / 1000,
-        )
+    if values[2] > width + 2 or values[3] > height + 2:
+        raise ValueError("MinerU bbox lies outside original PDF page")
     return values
 
 
@@ -194,6 +194,7 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
     warnings: list[str] = []
     title = ""
     section: str | None = None
+    section_path: list[str] = []
     for page_idx, _, items in pages:
         if not 0 <= page_idx < len(page_sizes):
             raise ServiceError("mineru_invalid_result", "MinerU 返回了无效页码。", 422)
@@ -218,15 +219,30 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
             except (TypeError, ValueError):
                 warnings.append(f"第 {page_idx + 1} 页某内容块缺少可靠坐标，已跳过。")
                 continue
+            role = "paragraph"
             if kind in {"title", "doc_title"}:
-                if page_idx == 0 and not title and len(text) >= 8:
-                    title = text.lstrip("# ").strip()
-                elif page_idx > 0 or title:
-                    section = text.lstrip("# ").strip()
-            if kind == "table":
-                block_kind = "table"
-            else:
-                block_kind = "text"
+                heading = text.lstrip("# ").strip()
+                if page_idx == 0 and not title and len(heading) >= 8 and not is_section(heading):
+                    title = heading
+                    role = "title"
+                else:
+                    section = heading
+                    section_path = [section]
+                    role = "section"
+            elif kind in {"section_title", "heading"} or is_section(text):
+                section = text.lstrip("# ").strip()
+                # Keep top-level and numbered subsection hierarchy.
+                match = re.match(r"^(\\d+(?:\\.\\d+)*)", section)
+                depth = match.group(1).count(".") + 1 if match else 1
+                section_path = section_path[: depth - 1] + [section]
+                role = "section"
+            elif kind == "table":
+                role = "table"
+            elif kind in {"equation", "interline_equation", "formula"}:
+                role = "formula"
+            elif kind in {"image", "image_body", "chart", "figure", "image_caption"}:
+                role = "figure_caption"
+            block_kind = "table" if role == "table" else "text"
             blocks.append(
                 SourceBlock(
                     block_id=f"p{page_idx + 1}-mineru-{index}",
@@ -236,6 +252,8 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
                     text=text,
                     raw_text=text,
                     section_title=section,
+                    section_path=section_path.copy(),
+                    role=role,
                 )
             )
             if len(blocks) > MAX_EXTRACTED_BLOCKS:
@@ -254,6 +272,7 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
         parsed_at=datetime.now(UTC),
         blocks=blocks,
         warnings=warnings,
+        parser_engine="mineru",
     )
 
 
