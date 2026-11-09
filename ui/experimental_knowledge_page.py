@@ -138,11 +138,35 @@ def render(backend_url: str) -> None:
         for ref in selected["property_evidence"]:
             st.caption(f"第 {ref['page_number']} 页 · {ref['block_id']}")
             st.code(ref["quote"])
+        audit_valid = False
+        try:
+            audit = _request(
+                backend_url,
+                "GET",
+                f"/observations/{selected['observation_id']}/audit",
+            ).json()
+            audit_valid = audit["valid"]
+            if audit_valid:
+                st.success(
+                    f"来源块、页码及数值匹配：已核对 {audit['checked_references']} 处引用"
+                )
+            else:
+                st.error("解析文本证据校验未通过：" + "、".join(audit["issues"]))
+            for warning in audit.get("warnings", []):
+                st.caption(warning)
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            request_error(exc, "暂时无法审计证据引用，审核通过操作已禁用。")
         if selected["verification_status"] == "evidence_matched_needs_review":
             reviewer = st.text_input("审核人标识", key="reviewer_id")
             note = st.text_area("审核意见（必填）", key="review_note")
             decision = st.radio("审核结论", ["human_verified", "rejected"], horizontal=True)
-            if st.button("提交人工审核", disabled=not (reviewer.strip() and note.strip())):
+            if st.button(
+                "提交人工审核",
+                disabled=not (
+                    reviewer.strip() and note.strip()
+                    and (decision == "rejected" or audit_valid)
+                ),
+            ):
                 try:
                     _request(
                         backend_url,
