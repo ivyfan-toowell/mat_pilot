@@ -16,6 +16,7 @@ from app.ingestion.structured_extractor import StructuredExperimentExtractor
 from app.schemas.experimental_knowledge import ComparisonReport, ExperimentalObservation
 from app.services.cross_paper_report import build_analysis, render_csv, render_markdown
 from app.services.document_service import DocumentService
+from app.services.evidence_audit import EvidenceAudit, audit_observation
 from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
 
 router = APIRouter(prefix="/api/v1/experimental-knowledge", tags=["experimental-knowledge"])
@@ -69,6 +70,14 @@ def extract(document_id: UUID, settings: SettingsDep, principal: PrincipalDep):
     records, warnings = StructuredExperimentExtractor(settings, principal.tenant_id).extract(
         document
     )
+    checked = []
+    for record in records:
+        audit = audit_observation(document, record)
+        if audit.valid:
+            checked.append(record)
+        else:
+            warnings.append(f"observation {record.observation_id}: " + ", ".join(audit.issues))
+    records = checked
     if not records:
         # Failed/uncertain extraction does not delete previous results.
         return ExtractionResponse(
@@ -82,10 +91,27 @@ def extract(document_id: UUID, settings: SettingsDep, principal: PrincipalDep):
     return ExtractionResponse(run_id=run_id, stored=len(records), warnings=warnings)
 
 
+@router.get("/observations/{observation_id}/audit", response_model=EvidenceAudit)
+def audit_saved_observation(
+    observation_id: UUID, settings: SettingsDep, principal: PrincipalDep
+):
+    record = store(settings, principal.tenant_id).get(observation_id)
+    document = DocumentService(
+        tenant_data_dir(settings, principal.tenant_id), settings, principal.tenant_id
+    ).load(record.document_id)
+    return audit_observation(document, record)
+
+
 @router.post("/observations/{observation_id}/review", response_model=ExperimentalObservation)
 def review(
     observation_id: UUID, request: ReviewRequest, settings: SettingsDep, principal: PrincipalDep
 ):
+    if request.decision == "human_verified":
+        audit = audit_saved_observation(observation_id, settings, principal)
+        if not audit.valid:
+            raise ServiceError(
+                "evidence_audit_failed", "原文证据校验未通过，禁止批准该实验记录。", 409
+            )
     return store(settings, principal.tenant_id).review(
         observation_id, request.decision, request.note, request.reviewer
     )
