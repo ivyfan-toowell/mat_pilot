@@ -36,7 +36,7 @@ def extract_chinese_gap_series(
             selected = blocks[index : index + 2]
             combined = " ".join(_normal(b.text) for b in selected)
             match = re.search(
-                r"退火温度从\s*(\d{2,4})\s*℃\s*增加到\s*(\d{2,4})\s*℃"
+                r"退火温度从\s*(\d{2,4})\s*(?:°C|℃)\s*增加到\s*(\d{2,4})\s*(?:°C|℃)"
                 r".{0,75}?所对应的样品光学带隙分别为\s*"
                 r"((?:\d+(?:\.\d+)?,?\s*){2,12})\s*eV",
                 combined,
