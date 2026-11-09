@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.schemas.experimental_knowledge import ExperimentalObservation
