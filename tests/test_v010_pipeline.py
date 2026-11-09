@@ -116,7 +116,7 @@ def _observation(doc):
 
 def test_section_aware_chunks_keep_all_source_ids_and_table_header():
     document = _document()
-    chunks = chunk_document(document, size=180)
+    chunks = chunk_document(document, size=180, overlap=30)
     assert chunks[0].section_path == ["2 结果与讨论", "2.4 吸收光谱"]
     assert chunks[0].source_block_ids == ["p1-a", "p1-b"]
     assert all(chunk.page_number == 1 for chunk in chunks[:2])
@@ -160,7 +160,7 @@ def test_evidence_audit_checks_raw_page_and_numeric_link():
 
 def test_agent_citations_must_exist_in_specific_original_block():
     document = _document()
-    chunk = chunk_document(document, size=180)[0]
+    chunk = chunk_document(document, size=180, overlap=30)[0]
     hit = SearchHit(**chunk.model_dump())
     result = SearchResult(
         question="S1 带隙?",
