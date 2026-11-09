@@ -16,9 +16,7 @@ class LLMClient:
     def _headers(self) -> dict[str, str]:
         if not self.settings.dashscope_api_key:
             raise ServiceError("llm_not_configured", "请配置 DASHSCOPE_API_KEY。", 503)
-        return {
-            "Authorization": "Bearer " + self.settings.dashscope_api_key.get_secret_value()
-        }
+        return {"Authorization": "Bearer " + self.settings.dashscope_api_key.get_secret_value()}
 
     def post_json(self, url: str, body: dict, *, error_code: str, error_message: str) -> dict:
         try:
