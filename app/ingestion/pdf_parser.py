@@ -25,6 +25,7 @@ def clean_text(text: str) -> str:
     normalized = unicodedata.normalize("NFKC", text.replace("\x00", "").replace("\u00ad", ""))
     return re.sub(r"[ \t]+", " ", normalized).strip()
 
+
 def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
     try:
         with pymupdf.open(path) as pdf:
