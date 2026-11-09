@@ -76,7 +76,7 @@ def audit_observation(
             issues.append(f"{field}:quote_not_in_parsed_source")
 
     numeric_text = " ".join(ref.quote for ref in record.property_evidence)
-    numbers = re.findall(r"(?<![\w])\d+(?:\.\d+)?", _normal(numeric_text))
+    numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", _normal(numeric_text))
     if not any(
         math.isclose(float(value), record.property_value, rel_tol=0, abs_tol=1e-5)
         for value in numbers
