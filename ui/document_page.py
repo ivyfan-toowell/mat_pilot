@@ -72,6 +72,33 @@ def render(backend_url: str) -> None:
         )
         return
     document_id = document["document_id"]
+    with st.expander("解析质量优化 · MinerU 高精度解析", expanded=False):
+        st.caption(
+            "默认 PyMuPDF 负责快速上传解析。复杂双栏、扫描或公式密集论文可以使用 "
+            "独立 MinerU 环境在后台重新解析。该操作创建新文献版本，"
+            "不会覆盖原文、旧实验记录和人工审核结果。"
+        )
+        if st.button(
+            "使用 MinerU 重新解析所选论文",
+            key=f"mineru_reparse_{document_id}",
+            icon=":material/auto_awesome:",
+        ):
+            try:
+                with st.spinner("正在运行 MinerU 版面解析；复杂论文可能耗时较长…"):
+                    result = run_job(
+                        backend_url,
+                        "/api/v1/jobs/documents/mineru-reparse",
+                        {"document_id": document_id},
+                        timeout=1800,
+                    )
+                get_json.clear()
+                new_doc = get_json(
+                    backend_url, f"/api/v1/documents/{result['document_id']}"
+                )
+                activate_document(new_doc)
+            except (httpx.HTTPError, ValueError, TimeoutError, RuntimeError) as exc:
+                request_error(exc, "MinerU 未能完成解析，原文和已有证据未受影响。")
+    document_id = document["document_id"]
     with st.container(key="panel_document"):
         st.subheader(document["title"])
         badges((f"{document['page_count']} 页", "neutral"), ("论文原文", "blue"))
