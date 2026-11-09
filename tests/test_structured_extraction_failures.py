@@ -5,7 +5,7 @@ import pytest
 
 from app.core.errors import ServiceError
 from app.ingestion.structured_extractor import StructuredExperimentExtractor
-from tests.test_structured_extractor import paper
+from test_structured_extractor import paper
 
 
 @pytest.mark.parametrize(
