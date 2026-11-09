@@ -74,7 +74,9 @@ def audit_observation(document: ParsedDocument, record: ExperimentalObservation)
             issues.append(f"{field}:quote_not_in_parsed_source")
 
     numeric_text = " ".join(ref.quote for ref in record.property_evidence)
-    numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", _normal(numeric_text))
+    numeric_text = unicodedata.normalize("NFKC", numeric_text)
+    numeric_text = re.sub(r"(?<=\d)\s*\.\s*(?=\d)", ".", numeric_text)
+    numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", numeric_text)
     if not any(
         math.isclose(float(value), record.property_value, rel_tol=0, abs_tol=1e-5)
         for value in numbers
