@@ -1,4 +1,5 @@
 """Section-aware paragraph chunking with stable source-block evidence."""
+
 from __future__ import annotations
 
 import re
@@ -25,7 +26,7 @@ def _pieces(text: str, size: int, overlap: int) -> list[str]:
         finish = min(start + size, len(text))
         if finish < len(text):
             # Prefer the final semantic boundary in the last 50% of the window.
-            tail = text[start + size // 2: finish]
+            tail = text[start + size // 2 : finish]
             matches = list(_BOUNDARIES.finditer(tail))
             if matches:
                 finish = start + size // 2 + matches[-1].end()

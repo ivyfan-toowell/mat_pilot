@@ -1,4 +1,5 @@
 """Fast native-PDF layout heuristics with explicit evidence, no model required."""
+
 from __future__ import annotations
 
 import re
@@ -23,9 +24,7 @@ _SECTION_RE = re.compile(
 
 
 def clean_native_text(text: str) -> str:
-    normalized = unicodedata.normalize(
-        "NFKC", text.replace("\x00", "").replace("\u00ad", "")
-    )
+    normalized = unicodedata.normalize("NFKC", text.replace("\x00", "").replace("\u00ad", ""))
     # OCR/text-layer PDFs can separate Chinese characters with spaces or line breaks.
     normalized = re.sub(r"(?<=[\u4e00-\u9fff])[ \t]+(?=[\u4e00-\u9fff])", "", normalized)
     normalized = re.sub(r"[ \t]+", " ", normalized)
@@ -70,7 +69,8 @@ def detect_paper_title(pdf: pymupdf.Document, filename: str) -> str:
             return metadata
         # Join an immediately following title line with similar font size.
         following = [
-            (y, value) for size, y, value in candidates
+            (y, value)
+            for size, y, value in candidates
             if best_y < y <= best_y + best_size * 2.3
             and abs(best_size - size) <= 1.5
             and value != best_text
@@ -94,7 +94,8 @@ def ordered_text_blocks(page: pymupdf.Page) -> list[tuple[int, tuple]]:
     (journal/title/abstract) remain ahead of both columns.
     """
     raw = [
-        (i, block) for i, block in enumerate(page.get_text("blocks", sort=True))
+        (i, block)
+        for i, block in enumerate(page.get_text("blocks", sort=True))
         if block[6] == 0 and str(block[4]).strip()
     ]
     width = page.rect.width

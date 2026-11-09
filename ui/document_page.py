@@ -92,9 +92,7 @@ def render(backend_url: str) -> None:
                         timeout=1800,
                     )
                 get_json.clear()
-                new_doc = get_json(
-                    backend_url, f"/api/v1/documents/{result['document_id']}"
-                )
+                new_doc = get_json(backend_url, f"/api/v1/documents/{result['document_id']}")
                 activate_document(new_doc)
             except (httpx.HTTPError, ValueError, TimeoutError, RuntimeError) as exc:
                 request_error(exc, "MinerU 未能完成解析，原文和已有证据未受影响。")

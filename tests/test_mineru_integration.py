@@ -1,4 +1,5 @@
 """Offline source-grounding tests for optional MinerU and native PDF parser."""
+
 import json
 import zipfile
 from datetime import UTC, datetime
@@ -31,7 +32,16 @@ def test_mineru_zip_converts_hierarchy_to_page_coordinates(tmp_path):
                     {
                         "type": "title",
                         "bbox": [100, 80, 500, 110],
-                        "lines": [{"spans": [{"type": "text", "content": "氮气退火对二氧化钛薄膜光学性能的影响"}]}],
+                        "lines": [
+                            {
+                                "spans": [
+                                    {
+                                        "type": "text",
+                                        "content": "氮气退火对二氧化钛薄膜光学性能的影响",
+                                    }
+                                ]
+                            }
+                        ],
                     },
                     {
                         "type": "text",
@@ -46,7 +56,12 @@ def test_mineru_zip_converts_hierarchy_to_page_coordinates(tmp_path):
                     {
                         "type": "table",
                         "bbox": [100, 320, 500, 450],
-                        "blocks": [{"type": "table_body", "table_body": "<table><tr><td>Sample</td><td>Band gap (eV)</td></tr><tr><td>S1</td><td>3.98</td></tr></table>"}],
+                        "blocks": [
+                            {
+                                "type": "table_body",
+                                "table_body": "<table><tr><td>Sample</td><td>Band gap (eV)</td></tr><tr><td>S1</td><td>3.98</td></tr></table>",
+                            }
+                        ],
                     },
                 ],
             }
@@ -100,12 +115,22 @@ def test_semantic_chunker_filters_base64_and_keeps_source_id():
     source += "![](data:image/png;base64,AAABBBBB)"
     source += "\n后续结果仍然属于本章。"
     block = SourceBlock(
-        block_id="p1-text-1", page_number=1, kind="text",
-        bbox=(10, 10, 60, 60), text=source, raw_text=source, section_title="实验结果",
+        block_id="p1-text-1",
+        page_number=1,
+        kind="text",
+        bbox=(10, 10, 60, 60),
+        text=source,
+        raw_text=source,
+        section_title="实验结果",
     )
     document = ParsedDocument(
-        document_id=uuid4(), filename="example.pdf", title="Fixture", sha256="0"*64,
-        page_count=1, parsed_at=datetime.now(UTC), blocks=[block],
+        document_id=uuid4(),
+        filename="example.pdf",
+        title="Fixture",
+        sha256="0" * 64,
+        page_count=1,
+        parsed_at=datetime.now(UTC),
+        blocks=[block],
     )
     chunks = chunk_document(document, size=220, overlap=40)
     assert len(chunks) > 1

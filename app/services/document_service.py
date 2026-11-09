@@ -54,10 +54,13 @@ class DocumentService:
                 if self.settings is None or self.settings.mineru_cli_path is None:
                     raise ServiceError(
                         "mineru_not_configured",
-                        "请在 .env 设置 MINERU_CLI_PATH，指向独立 MinerU 环境。", 503
+                        "请在 .env 设置 MINERU_CLI_PATH，指向独立 MinerU 环境。",
+                        503,
                     )
                 document = parse_mineru(
-                    original, document_id, safe_name,
+                    original,
+                    document_id,
+                    safe_name,
                     self.settings.mineru_cli_path,
                     self.settings.mineru_timeout_seconds,
                 )
@@ -85,9 +88,7 @@ class DocumentService:
         try:
             data = source.read_bytes()
         except FileNotFoundError as exc:
-            raise ServiceError(
-                "source_pdf_missing", "原始 PDF 不存在，请重新上传。", 404
-            ) from exc
+            raise ServiceError("source_pdf_missing", "原始 PDF 不存在，请重新上传。", 404) from exc
         return self.ingest(
             data,
             original_doc.filename,
