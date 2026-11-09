@@ -18,13 +18,15 @@ class EvidenceRef(BaseModel):
 
 class EvidenceField(BaseModel):
     value: str | None = None
-    status: Literal["reported", "not_extracted", "ambiguous"] = "not_extracted"
+    status: Literal["reported", "derived", "not_extracted", "ambiguous"] = "not_extracted"
     evidence: list[EvidenceRef] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def verify(self):
         if self.status == "reported" and (not self.value or not self.evidence):
             raise ValueError("reported field requires value and evidence")
+        if self.status == "derived" and (not self.value or not self.evidence):
+            raise ValueError("derived field requires value and source evidence")
         if self.status == "not_extracted" and (self.value is not None or self.evidence):
             raise ValueError("missing field must not have invented evidence")
         if self.status == "ambiguous" and self.value is not None:
@@ -62,7 +64,7 @@ class ExperimentalObservation(BaseModel):
 
     @model_validator(mode="after")
     def verify_sources(self):
-        if self.local_sample_label.status != "reported" or self.formula.status != "reported":
+        if self.local_sample_label.status not in {"reported", "derived"} or self.formula.status != "reported":
             raise ValueError("sample and formula require cited identity")
         refs = list(self.property_evidence)
         for field in (
