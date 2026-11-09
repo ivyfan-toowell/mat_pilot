@@ -3,6 +3,7 @@
 Consumes the 'middle_json' artifact from MinerU's ZIP export, not raw Markdown.
 Fail closed when page position or recognizable text cannot be recovered.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -64,8 +65,14 @@ def _plain(value: object) -> str:
 
 def _block_text(block: dict) -> str:
     for key in (
-        "text", "paragraph_content", "title_content", "table_body",
-        "table_caption", "image_caption", "math_content", "content",
+        "text",
+        "paragraph_content",
+        "title_content",
+        "table_body",
+        "table_caption",
+        "image_caption",
+        "math_content",
+        "content",
     ):
         value = block.get(key)
         if isinstance(value, str) and value.strip():
@@ -80,11 +87,15 @@ def _block_text(block: dict) -> str:
         lines = []
         for line in block["lines"]:
             spans = line.get("spans", []) if isinstance(line, dict) else []
-            lines.append("".join(_plain(span.get("content", "")) for span in spans if isinstance(span, dict)))
+            lines.append(
+                "".join(_plain(span.get("content", "")) for span in spans if isinstance(span, dict))
+            )
         return "\n".join(line for line in lines if line).strip()
     if "blocks" in block:
         return "\n".join(
-            part for child in block["blocks"] if isinstance(child, dict)
+            part
+            for child in block["blocks"]
+            if isinstance(child, dict)
             if (part := _block_text(child))
         )
     return ""
@@ -150,9 +161,7 @@ def _is_boilerplate(text: str, kind: str) -> bool:
     )
 
 
-def parse_mineru_zip(
-    path: Path, document_id: UUID, filename: str, archive: Path
-) -> ParsedDocument:
+def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path) -> ParsedDocument:
     with pymupdf.open(path) as pdf:
         if pdf.needs_pass:
             raise ServiceError("encrypted_pdf", "请先解密 PDF 后再上传。", 422)
@@ -162,7 +171,8 @@ def parse_mineru_zip(
     try:
         with zipfile.ZipFile(archive) as zf:
             matches = [
-                name for name in zf.namelist()
+                name
+                for name in zf.namelist()
                 if name.split("/")[-1] in {"middle_json.json", "structured_content.json"}
                 or name.endswith("_middle.json")
             ]
@@ -260,8 +270,17 @@ def parse_mineru(
         output = Path(temporary) / "result.zip"
         try:
             completed = subprocess.run(
-                [str(cli.resolve()), "parse", str(path.resolve()), "-o", str(output),
-                 "--format", "zip", "--tier", "standard"],
+                [
+                    str(cli.resolve()),
+                    "parse",
+                    str(path.resolve()),
+                    "-o",
+                    str(output),
+                    "--format",
+                    "zip",
+                    "--tier",
+                    "standard",
+                ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
@@ -269,7 +288,9 @@ def parse_mineru(
                 shell=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ServiceError("mineru_timeout", "MinerU 解析超时，请检查独立环境与 GPU。", 504) from exc
+            raise ServiceError(
+                "mineru_timeout", "MinerU 解析超时，请检查独立环境与 GPU。", 504
+            ) from exc
         except OSError as exc:
             raise ServiceError("mineru_failed", "无法启动独立 MinerU 进程。", 503) from exc
         if completed.returncode or not output.is_file():
