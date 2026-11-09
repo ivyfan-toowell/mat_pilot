@@ -40,7 +40,7 @@ def extract_chinese_gap_series(
                 r".{0,75}?所对应的样品光学带隙分别为\s*"
                 r"((?:\d+(?:\.\d+)?,?\s*){2,12})\s*eV",
                 combined,
-                re.I,
+                re.I | re.S,
             )
             if not match or "所对应的样品" not in combined:
                 continue
