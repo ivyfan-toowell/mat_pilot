@@ -146,10 +146,13 @@ uv run --locked --all-extras uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ### 4. 启动界面
 
+统一从仓库根目录的 `streamlit_app.py` 启动；Windows 也可直接运行 `./start_ui.ps1`。两种方式都不依赖临时设置 `PYTHONPATH`。原 `ui/app.py` 入口同样保留兼容性修复。
+
+
 新开终端并进入同一个项目目录：
 
 ~~~powershell
-uv run --locked --all-extras streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
+uv run --locked --all-extras streamlit run streamlit_app.py --server.address 127.0.0.1 --server.port 8501
 ~~~
 
 - 科研工作台：[http://127.0.0.1:8501](http://127.0.0.1:8501)
