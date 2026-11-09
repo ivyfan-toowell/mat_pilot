@@ -19,7 +19,14 @@ ToolName = Literal[
     "build_cross_paper_analysis",
 ]
 MATERIAL_TOOLS = {"search_materials", "get_material_details", "get_structure", "compare_materials"}
-LITERATURE_TOOLS = {"search_papers", "read_experiments", "search_academic_papers", "query_experiment_knowledge", "compare_experimental_records", "build_cross_paper_analysis"}
+LITERATURE_TOOLS = {
+    "search_papers",
+    "read_experiments",
+    "search_academic_papers",
+    "query_experiment_knowledge",
+    "compare_experimental_records",
+    "build_cross_paper_analysis",
+}
 
 
 class AgentCheckpoint(BaseModel):

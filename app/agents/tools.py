@@ -24,8 +24,10 @@ class KnowledgeQuery(BaseModel):
     formula: str | None = None
     limit: int = Field(default=12, ge=1, le=20)
 
+
 class ObservationSelectionRequest(BaseModel):
     observation_ids: list[UUID] = Field(min_length=2, max_length=12)
+
 
 class PaperSearch(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
@@ -112,14 +114,22 @@ def execute_tool(
     if name not in TOOL_MODELS:
         raise ServiceError("unknown_tool", "工具不在允许调用的列表中。", 422)
     params = TOOL_MODELS[name].model_validate(arguments)
-    if name in {"query_experiment_knowledge", "compare_experimental_records",
-                "build_cross_paper_analysis"}:
-        from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
+    if name in {
+        "query_experiment_knowledge",
+        "compare_experimental_records",
+        "build_cross_paper_analysis",
+    }:
         from app.services.cross_paper_report import build_analysis, render_markdown
+        from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
+
         store = ExperimentalKnowledgeStore(settings, tenant_id)
         if name == "query_experiment_knowledge":
-            return [item.model_dump(mode="json") for item in store.list(
-                document_id=params.document_id, formula=params.formula, limit=params.limit)]
+            return [
+                item.model_dump(mode="json")
+                for item in store.list(
+                    document_id=params.document_id, formula=params.formula, limit=params.limit
+                )
+            ]
         records = [store.get(record_id) for record_id in params.observation_ids]
         report = build_analysis(records)
         if name == "compare_experimental_records":
@@ -131,7 +141,9 @@ def execute_tool(
         return compare_materials(params, settings, tenant_id=tenant_id)
     if name == "get_material_details":
         return (
-            MaterialsProjectService(settings).get_details(params.material_id).model_dump(mode="json")
+            MaterialsProjectService(settings)
+            .get_details(params.material_id)
+            .model_dump(mode="json")
         )
     if name == "search_materials":
         params.limit = min(params.limit, 10)

@@ -6,7 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-JobKind = Literal["agent_run", "document_index", "experiment_extract", "structured_experiment_extract"]
+JobKind = Literal[
+    "agent_run", "document_index", "experiment_extract", "structured_experiment_extract"
+]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
 

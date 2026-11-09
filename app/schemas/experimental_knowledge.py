@@ -1,8 +1,12 @@
 """Evidence-backed sample-level observations for experimental optical gaps."""
+
 from __future__ import annotations
+
 from typing import Literal
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 
 class EvidenceRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -10,6 +14,7 @@ class EvidenceRef(BaseModel):
     block_id: str = Field(min_length=1)
     page_number: int = Field(ge=1)
     quote: str = Field(min_length=1, max_length=1800)
+
 
 class EvidenceField(BaseModel):
     value: str | None = None
@@ -25,6 +30,7 @@ class EvidenceField(BaseModel):
         if self.status == "ambiguous" and self.value is not None:
             raise ValueError("ambiguous field cannot select a value")
         return self
+
 
 class ExperimentalObservation(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -48,7 +54,9 @@ class ExperimentalObservation(BaseModel):
     property_value: float = Field(ge=0)
     property_unit: Literal["eV"] = "eV"
     property_evidence: list[EvidenceRef] = Field(min_length=1)
-    verification_status: Literal["evidence_matched_needs_review", "human_verified", "rejected"] = "evidence_matched_needs_review"
+    verification_status: Literal["evidence_matched_needs_review", "human_verified", "rejected"] = (
+        "evidence_matched_needs_review"
+    )
     value_kind: Literal["paper_experimental_estimate"] = "paper_experimental_estimate"
     extraction_run_id: UUID | None = None
 
@@ -57,19 +65,31 @@ class ExperimentalObservation(BaseModel):
         if self.local_sample_label.status != "reported" or self.formula.status != "reported":
             raise ValueError("sample and formula require cited identity")
         refs = list(self.property_evidence)
-        for field in ("local_sample_label", "formula", "phase", "doping",
-                      "preparation_method", "preparation_temperature", "preparation_time",
-                      "preparation_atmosphere", "measurement_technique", "analysis_method",
-                      "transition_assumption", "measurement_conditions"):
+        for field in (
+            "local_sample_label",
+            "formula",
+            "phase",
+            "doping",
+            "preparation_method",
+            "preparation_temperature",
+            "preparation_time",
+            "preparation_atmosphere",
+            "measurement_technique",
+            "analysis_method",
+            "transition_assumption",
+            "measurement_conditions",
+        ):
             refs.extend(getattr(self, field).evidence)
         if any(ref.document_id != self.document_id for ref in refs):
             raise ValueError("cross-document evidence forbidden")
         return self
 
+
 class ComparisonReason(BaseModel):
     code: str
     field: str
     detail: str
+
 
 class PairComparison(BaseModel):
     left_id: UUID
@@ -78,11 +98,14 @@ class PairComparison(BaseModel):
     reasons: list[ComparisonReason]
     human_review_required: bool = True
 
+
 class ComparisonReport(BaseModel):
     property_name: Literal["optical_band_gap"] = "optical_band_gap"
     observations: list[ExperimentalObservation]
     comparisons: list[PairComparison]
-    warnings: list[str] = Field(default_factory=lambda: [
-        "Evidence compatibility is not evidence of causation.",
-        "Results require independent scientific review.",
-    ])
+    warnings: list[str] = Field(
+        default_factory=lambda: [
+            "Evidence compatibility is not evidence of causation.",
+            "Results require independent scientific review.",
+        ]
+    )

@@ -2,7 +2,14 @@
 
 import os
 
-from ui import agent_page, document_page, knowledge_page, literature_page, material_page, experimental_knowledge_page
+from ui import (
+    agent_page,
+    document_page,
+    experimental_knowledge_page,
+    knowledge_page,
+    literature_page,
+    material_page,
+)
 from ui.shared import setup_shell
 
 backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")

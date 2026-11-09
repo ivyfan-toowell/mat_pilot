@@ -100,19 +100,16 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
             document = DocumentService(
                 tenant_data_dir(settings, tenant_id), settings, tenant_id
             ).load(document_id)
-            records, warnings = StructuredExperimentExtractor(
-                settings, tenant_id
-            ).extract(document)
+            records, warnings = StructuredExperimentExtractor(settings, tenant_id).extract(document)
             if records:
                 run_id = ExperimentalKnowledgeStore(settings, tenant_id).save(
                     document_id, records, model=settings.llm_model
                 )
-                job.result = {
-                    "run_id": str(run_id), "stored": len(records), "warnings": warnings
-                }
+                job.result = {"run_id": str(run_id), "stored": len(records), "warnings": warnings}
             else:
                 job.result = {
-                    "run_id": None, "stored": 0,
+                    "run_id": None,
+                    "stored": 0,
                     "warnings": warnings or ["没有足够证据支持的实验记录。"],
                 }
         else:
@@ -148,9 +145,7 @@ class JobWorker:
             self._workers = max(1, workers)
         self._started = True
         for index in range(self._workers):
-            thread = threading.Thread(
-                target=self._loop, name=f"matpilot-job-{index}", daemon=True
-            )
+            thread = threading.Thread(target=self._loop, name=f"matpilot-job-{index}", daemon=True)
             thread.start()
             self._threads.append(thread)
 

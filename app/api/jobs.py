@@ -43,9 +43,7 @@ def enqueue_agent(
     return _accept(response, settings, principal, "agent_run", body.model_dump(mode="json"))
 
 
-@router.post(
-    "/knowledge/index", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/knowledge/index", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_index(
     body: IndexJobRequest,
     response: Response,
@@ -55,9 +53,7 @@ def enqueue_index(
     return _accept(response, settings, principal, "document_index", body.model_dump(mode="json"))
 
 
-@router.post(
-    "/documents/extract", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/documents/extract", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_extract(
     body: ExtractJobRequest,
     response: Response,
@@ -81,8 +77,7 @@ def enqueue_structured_extract(
     principal: PrincipalDep,
 ) -> JobAccepted:
     return _accept(
-        response, settings, principal,
-        "structured_experiment_extract", body.model_dump(mode="json")
+        response, settings, principal, "structured_experiment_extract", body.model_dump(mode="json")
     )
 
 

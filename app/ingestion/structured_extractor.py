@@ -3,50 +3,73 @@
 Conservative contract: each field is backed by evidence; associations that cannot
 be verified are not published. No OCR / chart digitization is performed.
 """
+
 from __future__ import annotations
+
 import json
 from uuid import uuid5
+
 from pydantic import BaseModel, Field, ValidationError
+
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
+from app.schemas.selection import BlockSelection
 from app.services.chat_service import ChatService
 from app.services.evidence_service import copy_range
-from app.schemas.selection import BlockSelection
 
 FIELD_NAMES = (
-    "local_sample_label", "formula", "phase", "doping", "preparation_method",
-    "preparation_temperature", "preparation_time", "preparation_atmosphere",
-    "measurement_technique", "analysis_method", "transition_assumption",
+    "local_sample_label",
+    "formula",
+    "phase",
+    "doping",
+    "preparation_method",
+    "preparation_temperature",
+    "preparation_time",
+    "preparation_atmosphere",
+    "measurement_technique",
+    "analysis_method",
+    "transition_assumption",
     "measurement_conditions",
 )
+
 
 class FieldSelection(BaseModel):
     value: str | None = None
     status: str = "not_extracted"
     spans: list[BlockSelection] = Field(default_factory=list)
 
+
 class ObservationSelection(BaseModel):
     fields: dict[str, FieldSelection]
     property_value: float = Field(ge=0)
     property_spans: list[BlockSelection] = Field(min_length=1, max_length=4)
 
+
 class ExtractionSelection(BaseModel):
     observations: list[ObservationSelection] = Field(default_factory=list, max_length=40)
 
-def extract_from_selections(document: ParsedDocument, tenant_id: str,
-                            selections: ExtractionSelection) -> tuple[list[ExperimentalObservation], list[str]]:
+
+def extract_from_selections(
+    document: ParsedDocument, tenant_id: str, selections: ExtractionSelection
+) -> tuple[list[ExperimentalObservation], list[str]]:
     blocks = {b.block_id: b for b in document.blocks}
     warnings: list[str] = []
     accepted: list[ExperimentalObservation] = []
     for position, item in enumerate(selections.observations):
         try:
+
             def quote(span: BlockSelection) -> EvidenceRef:
                 block = blocks[span.block_id]
                 text = copy_range(block.text, span, max_length=1800)
-                return EvidenceRef(document_id=document.document_id, block_id=block.block_id,
-                                   page_number=block.page_number, quote=text)
+                return EvidenceRef(
+                    document_id=document.document_id,
+                    block_id=block.block_id,
+                    page_number=block.page_number,
+                    quote=text,
+                )
+
             fields: dict[str, EvidenceField] = {}
             for key in FIELD_NAMES:
                 f = item.fields.get(key, FieldSelection())
@@ -57,7 +80,10 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
                     if not refs or not f.value:
                         raise ValueError(f"{key} missing evidence")
                     # Must be text present in selected field evidence; avoid inferred values.
-                    if f.value.strip().casefold() not in " ".join(ref.quote for ref in refs).casefold():
+                    if (
+                        f.value.strip().casefold()
+                        not in " ".join(ref.quote for ref in refs).casefold()
+                    ):
                         raise ValueError(f"{key} not verbatim supported")
                     fields[key] = EvidenceField(value=f.value, status="reported", evidence=refs)
                 else:
@@ -65,6 +91,7 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
             property_refs = [quote(span) for span in item.property_spans]
             combined = " ".join(ref.quote for ref in property_refs)
             import re
+
             numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", combined)
             if not any(abs(float(n) - item.property_value) < 1e-8 for n in numbers):
                 raise ValueError("property_value not in evidence")
@@ -74,15 +101,24 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
             label = fields["local_sample_label"].value or ""
             if label.casefold() not in combined.casefold():
                 raise ValueError("sample-to-value link unproven in selected span")
-            accepted.append(ExperimentalObservation(
-                tenant_id=tenant_id, document_id=document.document_id,
-                sample_id=uuid5(document.document_id, fields['local_sample_label'].value.strip().casefold()),
-                **fields,
-                property_value=item.property_value, property_evidence=property_refs,
-            ))
+            accepted.append(
+                ExperimentalObservation(
+                    tenant_id=tenant_id,
+                    document_id=document.document_id,
+                    sample_id=uuid5(
+                        document.document_id, fields["local_sample_label"].value.strip().casefold()
+                    ),
+                    **fields,
+                    property_value=item.property_value,
+                    property_evidence=property_refs,
+                )
+            )
         except (ValueError, KeyError, ValidationError) as exc:
-            warnings.append(f"observation {position}: rejected due to missing/invalid relation evidence: {str(exc)[:150]}")
+            warnings.append(
+                f"observation {position}: rejected due to missing/invalid relation evidence: {str(exc)[:150]}"
+            )
     return accepted, warnings
+
 
 class StructuredExperimentExtractor:
     def __init__(self, settings: Settings, tenant_id: str) -> None:
@@ -92,14 +128,21 @@ class StructuredExperimentExtractor:
         if not self.settings.dashscope_api_key:
             raise ServiceError("llm_not_configured", "缺少模型配置。", 503)
         from app.services.evidence_service import source_lines
+
         context, used = [], 0
         for block in document.blocks:
             text = block.text
             if used + len(text) > 40000:
                 continue
             used += len(text)
-            context.append({"block_id": block.block_id, "page": block.page_number,
-                            "kind": block.kind, "lines": source_lines(text)})
+            context.append(
+                {
+                    "block_id": block.block_id,
+                    "page": block.page_number,
+                    "kind": block.kind,
+                    "lines": source_lines(text),
+                }
+            )
         if not context:
             raise ServiceError("document_empty", "无可用论文文本。", 422)
         prompt = (
@@ -116,12 +159,17 @@ class StructuredExperimentExtractor:
         )
         try:
             response = ChatService(self.settings).complete(
-                [{"role": "system", "content": prompt},
-                 {"role": "user", "content": json.dumps(context, ensure_ascii=False)}],
-                json_output=True)
+                [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
+                ],
+                json_output=True,
+            )
             selections = ExtractionSelection.model_validate_json(response["content"])
         except (ServiceError, ValidationError, ValueError, KeyError, TypeError) as exc:
-            raise ServiceError("structured_extraction_failed", "结构化提取失败，未写入数据。", 502) from exc
+            raise ServiceError(
+                "structured_extraction_failed", "结构化提取失败，未写入数据。", 502
+            ) from exc
         records, warnings = extract_from_selections(document, self.tenant_id, selections)
         if used < sum(len(b.text) for b in document.blocks):
             warnings.append("Document context truncated; output is not exhaustive.")
