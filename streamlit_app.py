@@ -1,10 +1,12 @@
-"""Stable Streamlit entrypoint located at the repository root.
+"""Canonical Streamlit entrypoint.
 
-Start with:
-    uv run --locked --all-extras streamlit run streamlit_app.py
-
-This avoids reliance on a manually configured PYTHONPATH and delegates the
-existing six-workspace UI to its single authoritative implementation.
+Execute the UI page as a script inside Streamlit's current ScriptRunContext.
+Avoid importing a module whose top-level Streamlit calls can be cached across
+reruns or executed outside the active script context.
 """
 
-from ui import app  # noqa: F401
+from pathlib import Path
+import runpy
+
+_UI_SCRIPT = Path(__file__).resolve().parent / "ui" / "app.py"
+runpy.run_path(str(_UI_SCRIPT), run_name="__main__")
