@@ -80,7 +80,7 @@ def _table_unit_evidence(
             gap_columns = [
                 index
                 for index, cell in enumerate(header_cells)
-                if re.search(r"band\\s*[- ]?gap|\\be[_ ]?g\\b|optical\\s+gap", cell, re.I)
+                if re.search(r"band\s*[- ]?gap|\be[_ ]?g\b|optical\s+gap", cell, re.I)
                 and re.search(r"(?<![A-Za-z])eV(?![A-Za-z])", cell, re.I)
             ]
             if len(gap_columns) != 1:
@@ -91,11 +91,11 @@ def _table_unit_evidence(
                 cells = [cell.strip() for cell in row.split("|")]
                 if len(cells) != len(header_cells):
                     continue
-                if not re.search(rf"(?<![\\w]){re.escape(sample_label)}(?![\\w])", row, re.I):
+                if not re.search(rf"(?<![\w]){re.escape(sample_label)}(?![\w])", row, re.I):
                     continue
                 if not any(
                     abs(float(value) - property_value) < 1e-8
-                    for value in re.findall(r"(?<![A-Za-z0-9])\\d+(?:\\.\\d+)?", cells[column])
+                    for value in re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", cells[column])
                 ):
                     continue
                 if row.strip() not in ref.quote:
