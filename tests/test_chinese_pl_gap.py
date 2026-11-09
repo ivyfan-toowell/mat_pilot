@@ -1,4 +1,5 @@
 """Chinese PL extraction: measured 2.3 eV must not be confused with cited 2.2 eV."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -26,9 +27,12 @@ def sample(*, measured=True):
         page_count=1,
         blocks=[
             SourceBlock(
-                block_id=f"p1-text-{i}", page_number=1, kind="text",
-                bbox=(300, 100 + 15*i, 550, 110 + 15*i),
-                text=value, raw_text=value,
+                block_id=f"p1-text-{i}",
+                page_number=1,
+                kind="text",
+                bbox=(300, 100 + 15 * i, 550, 110 + 15 * i),
+                text=value,
+                raw_text=value,
             )
             for i, value in enumerate(text)
         ],

@@ -3,6 +3,7 @@
 The match requires the authors' own PL measurement, a prepared material,
 the explicit photon-energy calculation and an eV value in the same column.
 """
+
 from __future__ import annotations
 
 import re
@@ -29,7 +30,8 @@ def extract_chinese_pl_gap(
                 continue
             # Reassemble the same column, rather than mixing two-column text by Y.
             peers = [
-                b for b in blocks
+                b
+                for b in blocks
                 if b.bbox[1] >= anchor.bbox[1] - 2
                 and b.bbox[1] <= anchor.bbox[1] + 150
                 and b.bbox[0] >= anchor.bbox[0] - 15
@@ -46,7 +48,8 @@ def extract_chinese_pl_gap(
             gap = re.search(
                 r"通过光子能量\s*E\s*=\s*hc\s*/\s*[λ\\u03bb].*?"
                 r"计算得其带隙约为\s*(\d+(?:\.\d+)?)\s*eV",
-                joined, re.I | re.S,
+                joined,
+                re.I | re.S,
             )
             if not formula or not gap:
                 continue
@@ -58,9 +61,12 @@ def extract_chinese_pl_gap(
                 continue
             # Preserve contiguous unmodified PDF block quotes and their coordinates.
             relevant = [
-                b for b in peers if re.search(
+                b
+                for b in peers
+                if re.search(
                     r"测试了其\s*PL|所制备的|通过光子能量|计算得其带隙约为|eV",
-                    _normal(b.text), re.I,
+                    _normal(b.text),
+                    re.I,
                 )
             ]
             refs = [
@@ -79,15 +85,9 @@ def extract_chinese_pl_gap(
                 ExperimentalObservation(
                     tenant_id=tenant_id,
                     document_id=document.document_id,
-                    sample_id=uuid5(
-                        document.document_id, f"pl-derived-{page}-{species}-{value}"
-                    ),
-                    local_sample_label=EvidenceField(
-                        status="derived", value=label, evidence=refs
-                    ),
-                    formula=EvidenceField(
-                        status="reported", value=species, evidence=refs
-                    ),
+                    sample_id=uuid5(document.document_id, f"pl-derived-{page}-{species}-{value}"),
+                    local_sample_label=EvidenceField(status="derived", value=label, evidence=refs),
+                    formula=EvidenceField(status="reported", value=species, evidence=refs),
                     measurement_technique=EvidenceField(
                         status="reported", value="PL", evidence=refs
                     ),
