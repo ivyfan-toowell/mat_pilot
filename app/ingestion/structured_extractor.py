@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.core.config import Settings
 from app.core.errors import ServiceError
 from app.ingestion.chinese_gap_series import extract_chinese_gap_series
+from app.ingestion.chinese_pl_gap import extract_chinese_pl_gap
 from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
 from app.schemas.selection import BlockSelection
@@ -204,6 +205,9 @@ class StructuredExperimentExtractor:
         series_records, series_warnings = extract_chinese_gap_series(document, self.tenant_id)
         if series_records:
             return series_records, series_warnings
+        pl_records, pl_warnings = extract_chinese_pl_gap(document, self.tenant_id)
+        if pl_records:
+            return pl_records, pl_warnings
         if not self.settings.dashscope_api_key:
             raise ServiceError("llm_not_configured", "缺少模型配置。", 503)
         from app.services.evidence_service import source_lines
