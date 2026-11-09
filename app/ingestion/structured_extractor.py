@@ -91,7 +91,9 @@ def _table_unit_evidence(
                 cells = [cell.strip() for cell in row.split("|")]
                 if len(cells) != len(header_cells):
                     continue
-                if sample_label.casefold() not in row.casefold():
+                if not re.search(
+                    rf"(?<![\\w]){re.escape(sample_label)}(?![\\w])", row, re.I
+                ):
                     continue
                 if not any(
                     abs(float(value) - property_value) < 1e-8
