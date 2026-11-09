@@ -19,6 +19,7 @@ from app.ingestion.structured_extractor import StructuredExperimentExtractor
 from app.schemas.agent import AgentRequest
 from app.schemas.job import JobKind, JobRecord
 from app.services.document_service import DocumentService
+from app.services.evidence_audit import audit_observation
 from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
 from app.services.rag_service import RagService
 
@@ -114,6 +115,17 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
                 tenant_data_dir(settings, tenant_id), settings, tenant_id
             ).load(document_id)
             records, warnings = StructuredExperimentExtractor(settings, tenant_id).extract(document)
+            valid_records = []
+            for record in records:
+                audit = audit_observation(document, record)
+                if audit.valid:
+                    valid_records.append(record)
+                else:
+                    warnings.append(
+                        f"observation {record.observation_id}: 原文证据校验失败 "
+                        + ", ".join(audit.issues)
+                    )
+            records = valid_records
             if records:
                 run_id = ExperimentalKnowledgeStore(settings, tenant_id).save(
                     document_id, records, model=settings.llm_model
