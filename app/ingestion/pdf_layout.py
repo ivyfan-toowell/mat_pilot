@@ -16,7 +16,7 @@ _TITLE_REJECT = re.compile(
     re.I,
 )
 _SECTION_RE = re.compile(
-    r"^(?:\d{1,2}(?:\.\d{1,2}){0,3}\s+[^\d\s].{2,90}|"
+    r"^(?:\d{1,2}(?:\.\d{1,2}){0,3}\.?(?:\s+)[^\d\s].{2,90}|"
     r"(?:摘要|引言|结论|参考文献|实验部分|结果与讨论)$|"
     r"(?:Introduction|Methods|Results|Discussion|Conclusions)\b.{0,70})",
     re.I,
