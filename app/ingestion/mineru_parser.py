@@ -125,16 +125,18 @@ def _page_items(payload: object) -> list[tuple[int, tuple[float, float] | None, 
             pages.append((int(page.get("page_idx", len(pages))), dimensions, items))
         return pages
     if isinstance(payload, list) and payload and all(isinstance(p, dict) for p in payload):
+        # DocVortex 2.0: each PageInfo has page_idx AND an ordered blocks list.
+        # Check for PageInfo before interpreting flat individual block records.
+        if all(isinstance(page.get("blocks"), list) for page in payload):
+            return [
+                (int(page.get("page_idx", i)), None, page["blocks"])
+                for i, page in enumerate(payload)
+            ]
         if all("page_idx" in item for item in payload):
             grouped: dict[int, list[dict]] = {}
             for item in payload:
                 grouped.setdefault(int(item["page_idx"]), []).append(item)
             return [(index, None, items) for index, items in sorted(grouped.items())]
-        if all(isinstance(p.get("blocks"), list) for p in payload):
-            return [
-                (int(page.get("page_idx", i)), None, page["blocks"])
-                for i, page in enumerate(payload)
-            ]
     if isinstance(payload, dict) and isinstance(payload.get("pages"), list):
         return _page_items(payload["pages"])
     return []
