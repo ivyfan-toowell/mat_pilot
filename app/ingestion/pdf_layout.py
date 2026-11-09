@@ -62,9 +62,12 @@ def detect_paper_title(pdf: pymupdf.Document, filename: str) -> str:
             score = max(float(s["size"]) for s in spans)
             # Titles typically appear in the upper half, and have large type.
             candidates.append((score, top, line_text))
+    metadata = clean_native_text((pdf.metadata or {}).get("title") or "")
     if candidates:
         candidates.sort(key=lambda x: (-x[0], x[1]))
         best_size, best_y, best_text = candidates[0]
+        if best_size < 13 and _reasonable_title(metadata):
+            return metadata
         # Join an immediately following title line with similar font size.
         following = [
             (y, value) for size, y, value in candidates
@@ -77,7 +80,6 @@ def detect_paper_title(pdf: pymupdf.Document, filename: str) -> str:
             if _reasonable_title(combined):
                 return combined
         return best_text
-    metadata = clean_native_text((pdf.metadata or {}).get("title") or "")
     if _reasonable_title(metadata):
         return metadata
     name = clean_native_text(Path(filename).stem)
