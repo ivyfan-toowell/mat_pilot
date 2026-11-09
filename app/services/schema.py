@@ -85,11 +85,16 @@ def apply_schema(settings: Settings) -> None:
             reviewer text NOT NULL,
             reviewed_at timestamptz NOT NULL DEFAULT now())""")
         for statement in (
-            "CREATE INDEX IF NOT EXISTS mp_kr_tenant_doc ON mp_knowledge_runs(tenant_id,document_id)",
-            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_doc ON mp_knowledge_observations(tenant_id,document_id)",
-            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_formula ON mp_knowledge_observations(tenant_id,formula)",
-            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_status ON mp_knowledge_observations(tenant_id,verification_status)",
-            "CREATE INDEX IF NOT EXISTS mp_krev_tenant_obs ON mp_knowledge_reviews(tenant_id,observation_id)",
+            "CREATE INDEX IF NOT EXISTS mp_kr_tenant_doc "
+            "ON mp_knowledge_runs(tenant_id,document_id)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_doc "
+            "ON mp_knowledge_observations(tenant_id,document_id)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_formula "
+            "ON mp_knowledge_observations(tenant_id,formula)",
+            "CREATE INDEX IF NOT EXISTS mp_ko_tenant_status "
+            "ON mp_knowledge_observations(tenant_id,verification_status)",
+            "CREATE INDEX IF NOT EXISTS mp_krev_tenant_obs "
+            "ON mp_knowledge_reviews(tenant_id,observation_id)",
         ):
             conn.execute(statement)
         if settings.vector_hnsw:
