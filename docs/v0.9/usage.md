@@ -12,9 +12,9 @@ docker compose up -d --wait db
 uv run --locked --all-extras alembic upgrade head
 uv run --locked --all-extras uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
-新开终端：
+新开终端：推荐使用仓库根目录的 `streamlit_app.py` 入口，无需设置 `PYTHONPATH`；也可直接运行 PowerShell 脚本 `./start_ui.ps1`。
 ```powershell
-uv run --locked --all-extras streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
+uv run --locked --all-extras streamlit run streamlit_app.py --server.address 127.0.0.1 --server.port 8501
 ```
 数据库仍是原 PostgreSQL；迁移添加三张表，旧 mp_experiments 不变。执行迁移前建议备份数据。
 
