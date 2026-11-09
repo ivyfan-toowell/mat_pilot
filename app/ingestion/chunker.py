@@ -9,7 +9,7 @@ from app.schemas.document import ParsedDocument
 from app.schemas.retrieval import Chunk
 
 _IMAGE_DATA = re.compile(r"!\[[^]]*\]\(data:image/[^)]+\)", re.I)
-_BOUNDARIES = re.compile(r"(?<=[。！？!?；;])\s+|(?<=[.!?])\s+(?=[A-Z])|\n{2,}")
+_BOUNDARIES = re.compile(r"(?<=[。！？；;])|(?<=[.!?])\s+(?=[A-Z])|\n{2,}")
 
 
 def _pieces(text: str, size: int, overlap: int) -> list[str]:
