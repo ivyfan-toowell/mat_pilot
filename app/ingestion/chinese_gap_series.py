@@ -11,6 +11,7 @@ import re
 import unicodedata
 from uuid import uuid5
 
+from app.ingestion.chinese_field_enrichment import enrich_annealing_gap_records
 from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
 
@@ -105,5 +106,5 @@ def extract_chinese_gap_series(
                 f"第 {page} 页提取 {len(values)} 个光学带隙；温度与数值逐项对应关系"
                 "依据起止温度和数据顺序推导，需人工核对原文图表后批准。"
             )
-            return result, warnings
+            return enrich_annealing_gap_records(document, result), warnings
     return result, warnings
