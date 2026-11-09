@@ -80,8 +80,8 @@ def _block_text(block: dict) -> str:
             return _plain(value)
         if key in {"table_caption", "image_caption"} and isinstance(value, list):
             return _plain(value)
-        if key == "content" and isinstance(value, dict):
-            nested = _block_text(value)
+        if key == "content" and isinstance(value, (dict, list)):
+            nested = _plain(value)
             if nested:
                 return nested
     if isinstance(block.get("content_list"), list):
@@ -142,15 +142,30 @@ def _page_items(payload: object) -> list[tuple[int, tuple[float, float] | None, 
 
 def _bounds(block: dict, page_size: tuple[float, float]) -> tuple[float, float, float, float]:
     raw = block.get("bbox")
+    structured_normalized = False
+    if isinstance(raw, dict) and isinstance(raw.get("normalized"), (list, tuple)):
+        raw = raw["normalized"]
+        structured_normalized = True
     if not isinstance(raw, (tuple, list)) or len(raw) != 4:
         raise ValueError("MinerU block has no bbox")
     values = tuple(float(v) for v in raw)
-    if not (0 <= values[0] <= values[2] and 0 <= values[1] <= values[3]):
+    if not (0 <= values[0] < values[2] and 0 <= values[1] < values[3]):
         raise ValueError("MinerU bbox is invalid")
-    # MinerU's bbox should be in PDF-page coordinates. Never silently rescale
-    # ambiguous coordinates; an incorrect bbox would falsify evidence location.
     width, height = page_size
-    if values[2] > width + 2 or values[3] > height + 2:
+    # DocVortex 2.0 MiddleJson PDF bbox is normalized to [0, 1].
+    if all(0 <= value <= 1 for value in values):
+        return (
+            values[0] * width, values[1] * height,
+            values[2] * width, values[3] * height,
+        )
+    # Structured Content's explicit normalized representation uses 0–1000.
+    if structured_normalized and all(0 <= value <= 1000 for value in values):
+        return (
+            values[0] * width / 1000, values[1] * height / 1000,
+            values[2] * width / 1000, values[3] * height / 1000,
+        )
+    # Historical MinerU middle-json only: absolute PDF page coordinates.
+    if structured_normalized or values[2] > width + 2 or values[3] > height + 2:
         raise ValueError("MinerU bbox lies outside original PDF page")
     return values
 
@@ -187,6 +202,12 @@ def parse_mineru_zip(path: Path, document_id: UUID, filename: str, archive: Path
         raise ServiceError(
             "mineru_invalid_result", "MinerU 没有返回可用的结构化页码数据。", 422
         ) from exc
+    if isinstance(payload, dict) and payload.get("schema") not in (
+        None, "docvortex.middle"
+    ):
+        raise ServiceError(
+            "mineru_invalid_result", "MinerU 输出了非 MiddleJson 协议，不能作为原文证据。", 422
+        )
     pages = _page_items(payload)
     if not pages:
         raise ServiceError("mineru_invalid_result", "MinerU 结果缺少文档页及内容块。", 422)
