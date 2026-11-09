@@ -4,9 +4,7 @@ Conservative contract: each field is backed by evidence; associations that canno
 be verified are not published. No OCR / chart digitization is performed.
 """
 from __future__ import annotations
-import hashlib
 import json
-from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, ValidationError
 from app.core.config import Settings
 from app.core.errors import ServiceError
