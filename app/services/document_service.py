@@ -36,6 +36,7 @@ class DocumentService:
         source_url: str | None = None,
         license_name: str | None = None,
         parser_engine: str = "pymupdf",
+        parent_document_id: UUID | None = None,
     ) -> ParsedDocument:
         if len(data) > MAX_PDF_BYTES:
             raise ServiceError("file_too_large", "PDF 不能超过 30 MB。", 413)
@@ -66,6 +67,7 @@ class DocumentService:
                 )
             else:
                 raise ServiceError("unknown_parser", "不支持的 PDF 解析引擎。", 422)
+            document.parent_document_id = parent_document_id
             document.source_url = source_url
             document.license = license_name
             self._persist_document(document, folder)
@@ -95,6 +97,7 @@ class DocumentService:
             original_doc.source_url,
             original_doc.license,
             parser_engine="mineru",
+            parent_document_id=document_id,
         )
 
     def load(self, document_id: UUID) -> ParsedDocument:
