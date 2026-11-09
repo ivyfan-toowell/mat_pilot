@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from itertools import combinations
 
-from app.services.experimental_normalization import normalized_field
 from app.schemas.experimental_knowledge import (
     ComparisonReason,
     ComparisonReport,
     ExperimentalObservation,
     PairComparison,
 )
+from app.services.experimental_normalization import normalized_field
 
 IDENTITY = ("formula", "phase", "doping")
 METHOD = ("measurement_technique", "analysis_method", "transition_assumption")
@@ -21,7 +21,6 @@ CONTEXT = (
     "preparation_atmosphere",
     "measurement_conditions",
 )
-
 
 
 def compare_pair(left: ExperimentalObservation, right: ExperimentalObservation) -> PairComparison:

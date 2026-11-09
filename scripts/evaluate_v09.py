@@ -5,15 +5,18 @@ uv run python -m scripts.evaluate_v09 --gold gold.json --predicted predictions.j
 Both inputs: {"records":[{"document_id":"...", "sample_label":"S1",
 "optical_band_gap_eV":3.1}, ...]}
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 
+
 def evaluate(gold: list[dict], predicted: list[dict]) -> dict:
     if not gold:
         raise ValueError("human gold annotations are required")
+
     def key(record: dict) -> tuple[str, str]:
         return str(record["document_id"]), str(record["sample_label"]).strip().casefold()
 
@@ -26,8 +29,10 @@ def evaluate(gold: list[dict], predicted: list[dict]) -> dict:
         actual = predicted_map.get(name)
         if actual is None:
             continue
-        if abs(float(actual["optical_band_gap_eV"]) -
-               float(expected["optical_band_gap_eV"])) <= 0.001:
+        if (
+            abs(float(actual["optical_band_gap_eV"]) - float(expected["optical_band_gap_eV"]))
+            <= 0.001
+        ):
             matched += 1
     return {
         "gold_records": len(gold),
@@ -36,8 +41,9 @@ def evaluate(gold: list[dict], predicted: list[dict]) -> dict:
         "sample_value_precision": matched / len(predicted) if predicted else 0,
         "sample_value_recall": matched / len(gold),
         "note": "Limited numeric agreement only; does not evaluate causal claims, "
-                "extraction evidence or scientific validity.",
+        "extraction evidence or scientific validity.",
     }
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -47,6 +53,7 @@ def main() -> None:
     gold = json.loads(args.gold.read_text(encoding="utf-8"))["records"]
     predicted = json.loads(args.predicted.read_text(encoding="utf-8"))["records"]
     print(json.dumps(evaluate(gold, predicted), indent=2, ensure_ascii=False))
+
 
 if __name__ == "__main__":
     main()
