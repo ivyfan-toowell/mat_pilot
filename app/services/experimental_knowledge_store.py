@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from psycopg.types.json import Jsonb
 
 from app.core.config import Settings
 from app.core.errors import ServiceError
@@ -26,6 +25,8 @@ class ExperimentalKnowledgeStore:
             raise ServiceError("invalid_observation_scope", "文档或租户与实验记录不一致。", 422)
         if len({r.observation_id for r in records}) != len(records):
             raise ServiceError("duplicate_observation", "存在重复实验记录 ID。", 422)
+        from psycopg.types.json import Jsonb
+
         run_id = uuid4()
         with connect_postgres(self.settings) as conn:
             owned = conn.execute(
@@ -117,6 +118,8 @@ class ExperimentalKnowledgeStore:
             raise ServiceError("invalid_review", "只支持通过或拒绝。", 422)
         if not note.strip() or not reviewer.strip():
             raise ServiceError("invalid_review", "审核意见与审核人不能为空。", 422)
+        from psycopg.types.json import Jsonb
+
         with connect_postgres(self.settings) as conn:
             row = conn.execute(
                 """SELECT observation FROM mp_knowledge_observations
