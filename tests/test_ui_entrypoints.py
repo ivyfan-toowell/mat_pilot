@@ -18,3 +18,7 @@ def test_streamlit_starts_without_pythonpath(entrypoint, monkeypatch):
     monkeypatch.delenv("PYTHONPATH", raising=False)
     app = AppTest.from_file(str(ROOT / entrypoint), default_timeout=20).run()
     assert not app.exception, [str(error.message) for error in app.exception]
+    # An import-only script may pass without producing any visible UI.
+    assert any(button.label == "查询真实材料" for button in app.button), (
+        "MatPilot must render a visible material-search button on first load"
+    )
