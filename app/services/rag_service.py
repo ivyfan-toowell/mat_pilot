@@ -5,13 +5,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import ValidationError
 
-from app.core.config import LOCAL_TENANT_ID, Settings
+from app.core.config import LOCAL_TENANT_ID, Settings, tenant_data_dir
 from app.core.errors import ServiceError
 from app.ingestion.chunker import chunk_document
 from app.ingestion.extractor import normalized
 from app.schemas.document import ParsedDocument
 from app.schemas.retrieval import AnswerDraft, AnswerResult, SearchRequest, SearchResult
 from app.services.chat_service import ChatService
+from app.services.document_service import DocumentService
 from app.services.embedding_service import EmbeddingService
 from app.services.hybrid_retrieval import deduplicate, reciprocal_rank_fusion, sparse_search
 from app.services.rerank_service import RerankService
@@ -49,6 +50,28 @@ def validate_answer(draft: AnswerDraft, result: SearchResult) -> AnswerResult:
     )
 
 
+def verify_original_citations(
+    draft: AnswerDraft,
+    result: SearchResult,
+    documents: dict,
+) -> None:
+    """A citation must occur inside one actual PDF source block in that chunk."""
+    for claim in draft.claims:
+        for citation in claim.citations:
+            hit = result.hits[citation.source_id - 1]
+            document = documents[hit.document_id]
+            allowed = set(hit.source_block_ids or [hit.block_id])
+            sources = [
+                block for block in document.blocks
+                if block.block_id in allowed and block.page_number == hit.page_number
+            ]
+            if not any(
+                normalized(citation.quote) in normalized(block.text)
+                for block in sources
+            ):
+                raise ValueError("citation_not_in_original_pdf_block")
+
+
 class RagService:
     def __init__(self, settings: Settings, tenant_id: str = LOCAL_TENANT_ID) -> None:
         self.settings = settings
@@ -60,6 +83,16 @@ class RagService:
         chunks = chunk_document(document)
         if not chunks:
             raise ServiceError("no_document_text", "文献无可索引文本，请先完成 OCR。", 422)
+        by_id = {block.block_id: block for block in document.blocks}
+        for chunk in chunks:
+            refs = chunk.source_block_ids or [chunk.block_id]
+            if any(
+                ref not in by_id or by_id[ref].page_number != chunk.page_number
+                for ref in refs
+            ):
+                raise ServiceError(
+                    "chunk_provenance_invalid", "Chunk 原文块关联不可靠，已阻止建立索引。", 422
+                )
         # Fail on DB configuration before incurring remote embedding costs.
         self.store.verify_embedding_config()
         vectors = self.embeddings.embed([chunk.text for chunk in chunks])
@@ -116,7 +149,14 @@ class RagService:
         if not self.settings.dashscope_api_key:
             raise ServiceError("llm_not_configured", "请配置 DASHSCOPE_API_KEY。", 503)
         sources = [
-            {"source_id": index, "text": hit.text} for index, hit in enumerate(result.hits, 1)
+            {
+                "source_id": index,
+                "page_number": hit.page_number,
+                "section_path": hit.section_path,
+                "source_block_ids": hit.source_block_ids or [hit.block_id],
+                "text": hit.text,
+            }
+            for index, hit in enumerate(result.hits, 1)
         ]
         prompt = (
             "你是材料科研助手。请仅依据提供的来源，使用用户所用的语言回答问题。"
@@ -141,7 +181,18 @@ class RagService:
                 json_output=True,
             )
             draft = AnswerDraft.model_validate_json(message["content"])
-            return validate_answer(draft, result)
+            checked = validate_answer(draft, result)
+            document_service = DocumentService(
+                tenant_data_dir(self.settings, self.tenant_id),
+                self.settings,
+                self.tenant_id,
+            )
+            documents = {
+                document_id: document_service.load(document_id)
+                for document_id in {hit.document_id for hit in result.hits}
+            }
+            verify_original_citations(draft, result, documents)
+            return checked
         except (ServiceError, ValidationError, ValueError, KeyError, TypeError) as exc:
             if isinstance(exc, ServiceError) and exc.code == "llm_not_configured":
                 raise
