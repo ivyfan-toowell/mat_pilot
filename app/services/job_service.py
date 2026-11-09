@@ -15,9 +15,11 @@ from app.core.config import Settings, tenant_data_dir
 from app.core.errors import ServiceError
 from app.core.io import atomic_write_text
 from app.ingestion.extractor import ExperimentExtractor
+from app.ingestion.structured_extractor import StructuredExperimentExtractor
 from app.schemas.agent import AgentRequest
 from app.schemas.job import JobKind, JobRecord
 from app.services.document_service import DocumentService
+from app.services.experimental_knowledge_store import ExperimentalKnowledgeStore
 from app.services.rag_service import RagService
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,26 @@ def execute_job(settings: Settings, tenant_id: str, job: JobRecord) -> JobRecord
             ).load(document_id)
             extraction = ExperimentExtractor(settings, tenant_id).extract(document)
             job.result = extraction.model_dump(mode="json")
+        elif job.kind == "structured_experiment_extract":
+            document_id = UUID(str(job.request["document_id"]))
+            document = DocumentService(
+                tenant_data_dir(settings, tenant_id), settings, tenant_id
+            ).load(document_id)
+            records, warnings = StructuredExperimentExtractor(
+                settings, tenant_id
+            ).extract(document)
+            if records:
+                run_id = ExperimentalKnowledgeStore(settings, tenant_id).save(
+                    document_id, records, model=settings.llm_model
+                )
+                job.result = {
+                    "run_id": str(run_id), "stored": len(records), "warnings": warnings
+                }
+            else:
+                job.result = {
+                    "run_id": None, "stored": 0,
+                    "warnings": warnings or ["没有足够证据支持的实验记录。"],
+                }
         else:
             raise ServiceError("unknown_job_kind", "不支持的任务类型。", 422)
         job.status = "succeeded"
