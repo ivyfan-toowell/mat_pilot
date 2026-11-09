@@ -3,12 +3,13 @@
 Only extracts fields from explicit wording in the source PDF. The function never
 deduces sample-specific phase, doping extent, or treatment time from a graph.
 """
+
 from __future__ import annotations
 
 import re
 import unicodedata
 
-from app.schemas.document import ParsedDocument, SourceBlock
+from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
 
 
@@ -66,25 +67,35 @@ def enrich_annealing_gap_records(
     result_pages = {ref.page_number for record in records for ref in record.property_evidence}
     analysis = _match(document, r"(外推法)", allowed_pages=result_pages)
     transition = _match(
-        document, r"(直接带隙)", guard=r"TiO2.{0,20}直接带隙",
+        document,
+        r"(直接带隙)",
+        guard=r"TiO2.{0,20}直接带隙",
         allowed_pages=result_pages,
     )
     technique = _match(
-        document, r"(透射光谱)", guard=r"实验所得|光学带隙|外推",
+        document,
+        r"(透射光谱)",
+        guard=r"实验所得|光学带隙|外推",
         allowed_pages=result_pages,
     )
     # Preparation requires explicit method-context wording; avoid references.
     methods_pages = {page for page in range(1, min(result_pages) + 1)}
     preparation = _match(
-        document, r"(离子注入)", guard=r"制备|室温|注入|薄膜",
+        document,
+        r"(离子注入)",
+        guard=r"制备|室温|注入|薄膜",
         allowed_pages=methods_pages,
     )
     atmosphere = _match(
-        document, r"(氮气)", guard=r"氮气(?:中|气氛).*?退火|退火.*?氮气",
+        document,
+        r"(氮气)",
+        guard=r"氮气(?:中|气氛).*?退火|退火.*?氮气",
         allowed_pages=methods_pages,
     )
     doping = _match(
-        document, r"(氮掺杂)", guard=r"TiO2|薄膜",
+        document,
+        r"(氮掺杂)",
+        guard=r"TiO2|薄膜",
         allowed_pages=methods_pages,
     )
     enriched = []

@@ -1,4 +1,5 @@
 """Evidence-field completeness regressions for Chinese TiO2 annealing papers."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -12,19 +13,26 @@ def paper(include_methods=True):
         (1, "本文利用离子注入和氮气中退火制备氮掺杂TiO2薄膜。"),
         (3, "TiO2属直接带隙半导体，由实验所得透射光谱数据"),
         (3, "根据外推法可计算各退火温度TiO2的光学带隙。"),
-        (3, "退火温度从500℃增加到900℃所对应的样品光学带隙分别为"
-            "3.98，3.97，3.96，3.73，"),
+        (3, "退火温度从500℃增加到900℃所对应的样品光学带隙分别为3.98，3.97，3.96，3.73，"),
         (3, "3.30eV，光学带隙随温度的变化趋势如图5所示。"),
     ]
     if not include_methods:
         lines = lines[1:]
     return ParsedDocument(
-        document_id=uuid4(), filename="fixture.pdf", title="synthetic", sha256="0"*64,
-        parsed_at=datetime.now(UTC), page_count=3,
+        document_id=uuid4(),
+        filename="fixture.pdf",
+        title="synthetic",
+        sha256="0" * 64,
+        parsed_at=datetime.now(UTC),
+        page_count=3,
         blocks=[
             SourceBlock(
-                block_id=f"p{page}-text-{i}", page_number=page,
-                kind="text", bbox=(0,i*10,100,i*10+7), text=value, raw_text=value,
+                block_id=f"p{page}-text-{i}",
+                page_number=page,
+                kind="text",
+                bbox=(0, i * 10, 100, i * 10 + 7),
+                text=value,
+                raw_text=value,
             )
             for i, (page, value) in enumerate(lines)
         ],
@@ -42,8 +50,14 @@ def test_enrichment_includes_real_evidence_for_methods():
         assert record.preparation_method.value == "离子注入"
         assert record.preparation_atmosphere.value == "氮气"
         assert record.doping.value == "氮掺杂"
-        for field in ("analysis_method", "measurement_technique", "transition_assumption",
-                      "preparation_method", "preparation_atmosphere", "doping"):
+        for field in (
+            "analysis_method",
+            "measurement_technique",
+            "transition_assumption",
+            "preparation_method",
+            "preparation_atmosphere",
+            "doping",
+        ):
             item = getattr(record, field)
             assert item.evidence and item.status == "reported"
             assert item.value in item.evidence[0].quote
