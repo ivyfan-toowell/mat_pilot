@@ -23,7 +23,8 @@ def render_markdown(report: ComparisonReport) -> str:
         "",
         "> 自动生成的证据整理。样品工艺与性能差异不构成因果证明；请人工复核。",
         "",
-        "| 文献 UUID | 样品 | 化学式 | 晶相 | 制备温度 | 测量技术 | 拟合方法 | 实验光学带隙 (eV) | 审核 |",
+        "| 文献 UUID | 样品 | 化学式 | 晶相 | 制备温度 | "
+        "测量技术 | 拟合方法 | 实验光学带隙 (eV) | 审核 |",
         "|---|---|---|---|---|---|---|---:|---|",
     ]
     for r in report.observations:
@@ -47,10 +48,10 @@ def render_markdown(report: ComparisonReport) -> str:
     lines.extend(("", "## 两两可比性（规则判断）", ""))
     index = {r.observation_id: r for r in report.observations}
     for p in report.comparisons:
-        l, r = index[p.left_id], index[p.right_id]
+        left, right = index[p.left_id], index[p.right_id]
         lines.append(
-            f"- {l.document_id}/{l.local_sample_label.value} vs "
-            f"{r.document_id}/{r.local_sample_label.value}：**{p.status}**；"
+            f"- {left.document_id}/{left.local_sample_label.value} vs "
+            f"{right.document_id}/{right.local_sample_label.value}：**{p.status}**；"
             + "；".join(f"{reason.field}: {reason.code}" for reason in p.reasons)
         )
     lines.extend(("", "## 原文证据", ""))
