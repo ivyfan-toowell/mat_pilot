@@ -3,7 +3,7 @@ from __future__ import annotations
 import httpx
 import pandas as pd
 import streamlit as st
-from ui.shared import api_headers, page_header, request_error
+from ui.shared import api_headers, page_header, request_error, run_job
 
 PREFIX = "/api/v1/experimental-knowledge"
 
@@ -25,7 +25,10 @@ def render(backend_url: str) -> None:
     if st.button("提取所选论文的结构化实验信息", disabled=not doc_id.strip()):
         try:
             with st.spinner("正在提取样品与实验条件…"):
-                outcome = _request(backend_url, "POST", f"/documents/{doc_id.strip()}/extract").json()
+                outcome = run_job(
+                    backend_url, "/api/v1/jobs/experimental-knowledge/extract",
+                    {"document_id": doc_id.strip()}, 240,
+                )
             st.success(f"本次入库 {outcome['stored']} 条记录")
             for warning in outcome.get("warnings", []):
                 st.warning(warning)
