@@ -140,8 +140,7 @@ class StructuredExperimentExtractor:
             re.IGNORECASE,
         )
         candidates = [
-            block for block in document.blocks
-            if block.kind == "table" or signal.search(block.text)
+            block for block in document.blocks if block.kind == "table" or signal.search(block.text)
         ]
         if not candidates:
             raise ServiceError(
@@ -211,7 +210,8 @@ class StructuredExperimentExtractor:
         except (ValueError, KeyError, TypeError) as exc:
             logger.warning(
                 "structured extraction response error document_id=%s type=%s",
-                document.document_id, type(exc).__name__,
+                document.document_id,
+                type(exc).__name__,
             )
             raise ServiceError(
                 "structured_extraction_invalid_response",
