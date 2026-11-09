@@ -72,6 +72,8 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
                         text=text,
                         raw_text=block[4],
                         section_title=section,
+                        role="section" if text == section else "paragraph",
+                        section_path=[section] if section else [],
                     )
                 )
             title = detect_paper_title(pdf, filename)
@@ -119,6 +121,7 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
                                 raw_text=text,
                                 table_number=caption.group(1) if caption else None,
                                 rows=rows,
+                                role="table",
                             )
                         )
                 except Exception as exc:
@@ -140,6 +143,7 @@ def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
             parsed_at=datetime.now(UTC),
             blocks=blocks,
             warnings=warnings,
+            parser_engine="pymupdf",
         )
     except ServiceError:
         raise
