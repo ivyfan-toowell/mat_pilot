@@ -53,7 +53,7 @@ def test_chunk_identity_page_overlap_and_intact_table():
     assert len({chunk.chunk_id for chunk in chunks}) == len(chunks)
     # V0.10 adds source markers before each paragraph; overlap applies to
     # original text, not to the provenance marker itself.
-    assert chunks[0].text[-10:] == chunks[1].text.split("\\n", 1)[1][:10]
+    assert chunks[0].text[-10:] == chunks[1].text.split("\n", 1)[1][:10]
     assert chunks[-1].text.endswith(document.blocks[-1].text.strip())
     assert chunks[-1].source_block_ids == ["p2-table"]
     assert chunks[-1].page_number == 2 and chunks[0].page_number == 1
