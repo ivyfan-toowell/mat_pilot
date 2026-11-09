@@ -126,9 +126,16 @@ def is_section(text: str) -> bool:
 
 
 def improve_sections(blocks: list[SourceBlock]) -> None:
-    current: str | None = None
+    """Track nested headings after restoring the native page reading order."""
+    path: list[str] = []
     for block in blocks:
         if block.kind == "text" and is_section(block.text):
-            current = block.text.strip()
-        if block.section_title is None:
-            block.section_title = current
+            title = block.text.strip()
+            match = re.match(r"^(\\d+(?:\\.\\d+)*)", title)
+            depth = match.group(1).count(".") + 1 if match else 1
+            path = path[: depth - 1] + [title]
+            block.role = "section"
+        elif block.kind == "table":
+            block.role = "table"
+        block.section_path = list(path)
+        block.section_title = path[-1] if path else None
