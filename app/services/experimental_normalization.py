@@ -16,7 +16,7 @@ def normalized_text(value: str | None) -> str:
 def normalized_temperature(value: str | None) -> str:
     text = normalized_text(value)
     expression = re.fullmatch(
-        r"([+-]?\\d+(?:\\.\\d+)?)\\s*(?:°?c|celsius|k|kelvin)", text
+        r"([+-]?\d+(?:\.\d+)?)\s*(?:°?c|celsius|k|kelvin)", text
     )
     if not expression:
         return text
