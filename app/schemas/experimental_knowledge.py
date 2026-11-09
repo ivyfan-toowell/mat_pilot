@@ -64,7 +64,10 @@ class ExperimentalObservation(BaseModel):
 
     @model_validator(mode="after")
     def verify_sources(self):
-        if self.local_sample_label.status not in {"reported", "derived"} or self.formula.status != "reported":
+        if (
+            self.local_sample_label.status not in {"reported", "derived"}
+            or self.formula.status != "reported"
+        ):
             raise ValueError("sample and formula require cited identity")
         refs = list(self.property_evidence)
         for field in (

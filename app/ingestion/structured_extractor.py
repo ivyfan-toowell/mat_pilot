@@ -14,9 +14,9 @@ from uuid import uuid5
 
 from pydantic import BaseModel, Field, ValidationError
 
-from app.ingestion.chinese_gap_series import extract_chinese_gap_series
 from app.core.config import Settings
 from app.core.errors import ServiceError
+from app.ingestion.chinese_gap_series import extract_chinese_gap_series
 from app.schemas.document import ParsedDocument
 from app.schemas.experimental_knowledge import EvidenceField, EvidenceRef, ExperimentalObservation
 from app.schemas.selection import BlockSelection
@@ -76,7 +76,9 @@ def _table_unit_evidence(
         if not lines:
             continue
         for header_index, header in enumerate(lines):
-            header_cells = [unicodedata.normalize("NFKC", cell).strip() for cell in header.split("|")]
+            header_cells = [
+                unicodedata.normalize("NFKC", cell).strip() for cell in header.split("|")
+            ]
             if len(header_cells) < 2:
                 continue
             gap_columns = [
@@ -95,7 +97,8 @@ def _table_unit_evidence(
                     continue
                 if not re.search(
                     rf"(?<![\w]){re.escape(unicodedata.normalize('NFKC', sample_label))}(?![\w])",
-                    unicodedata.normalize("NFKC", row), re.I,
+                    unicodedata.normalize("NFKC", row),
+                    re.I,
                 ):
                     continue
                 if not any(
@@ -157,9 +160,7 @@ def extract_from_selections(
                 else:
                     fields[key] = EvidenceField(status=f.status)
             property_refs = [quote(span) for span in item.property_spans]
-            combined = unicodedata.normalize(
-                "NFKC", " ".join(ref.quote for ref in property_refs)
-            )
+            combined = unicodedata.normalize("NFKC", " ".join(ref.quote for ref in property_refs))
             numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", combined)
             if not any(abs(float(n) - item.property_value) < 1e-8 for n in numbers):
                 raise ValueError("property_value not in evidence")
@@ -200,9 +201,7 @@ class StructuredExperimentExtractor:
     def extract(self, document: ParsedDocument) -> tuple[list[ExperimentalObservation], list[str]]:
         # Recover a high-confidence Chinese experimental series first.
         # All inferred condition labels are marked derived and still need review.
-        series_records, series_warnings = extract_chinese_gap_series(
-            document, self.tenant_id
-        )
+        series_records, series_warnings = extract_chinese_gap_series(document, self.tenant_id)
         if series_records:
             return series_records, series_warnings
         if not self.settings.dashscope_api_key:
@@ -219,7 +218,9 @@ class StructuredExperimentExtractor:
             re.IGNORECASE,
         )
         candidates = [
-            block for block in document.blocks if block.kind == "table" or signal.search(unicodedata.normalize("NFKC", block.text))
+            block
+            for block in document.blocks
+            if block.kind == "table" or signal.search(unicodedata.normalize("NFKC", block.text))
         ]
         if not candidates:
             raise ServiceError(

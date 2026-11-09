@@ -4,6 +4,7 @@ Only handles author-reported experimental optical-gap sequences with explicit
 start/end annealing temperatures and a corresponding ordered value list.
 Intermediate temperature labels are derived and require human verification.
 """
+
 from __future__ import annotations
 
 import re
@@ -26,9 +27,7 @@ def extract_chinese_gap_series(
     # The source PDF parser may have split a sentence across separate blocks.
     pages = sorted({block.page_number for block in document.blocks})
     for page in pages:
-        blocks = [
-            b for b in document.blocks if b.page_number == page and b.kind == "text"
-        ]
+        blocks = [b for b in document.blocks if b.page_number == page and b.kind == "text"]
         for index, block in enumerate(blocks):
             # Require experimental context and a precise association phrase.
             if "退火温度从" not in _normal(block.text):
@@ -59,8 +58,11 @@ def extract_chinese_gap_series(
             if any(not 0 < value < 10 for value in values):
                 continue
             identity = next(
-                (b for b in blocks[max(0, index - 7) : index + 1]
-                 if re.search(r"TiO2", _normal(b.text), re.I)),
+                (
+                    b
+                    for b in blocks[max(0, index - 7) : index + 1]
+                    if re.search(r"TiO2", _normal(b.text), re.I)
+                ),
                 None,
             )
             if identity is None:
