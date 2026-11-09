@@ -272,3 +272,18 @@ uv lock --check
 - [论文发现](docs/literature.md) · [文献检索与评测](docs/retrieval.md) · [多角色协作](docs/collaboration.md)
 - [UI / UX 设计规范](docs/design/ui-ux-proposal.md) · [开发记录](docs/development.md)
 - [项目任务书与路线](docs/taskbook.md) · [仓库维护](docs/github.md)
+
+
+## V0.9 跨论文实验知识分析（开发分支）
+
+V0.9 新增样品级光学带隙提取、实验知识库（PostgreSQL JSONB）、字段级原文证据、
+规则式可比性判断、人工审核、Markdown/CSV 导出及 Streamlit “实验知识库”工作区。
+初期仅支持文本 PDF 的实验光学带隙，**不推断因果关系或材料机理**。
+可在原五个工作区外选择新入口，原有单 Agent、协作 Agent 和 Materials Project 仍可使用。
+
+- [操作和 API](docs/v0.9/usage.md)
+- [基线与差距](docs/v0.9/baseline.md)
+- [分阶段验收](docs/v0.9/acceptance.md)
+- [科研局限](docs/v0.9/limitations.md)
+
+完整真实科研验证仍需用户在本机导入具有许可的论文、运行模型和数据库，并建立独立人工标注数据集。
