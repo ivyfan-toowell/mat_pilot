@@ -20,6 +20,7 @@ WORKSPACES = {
     "论文解析": ("documents", "description"),
     "文献知识库": ("knowledge", "local_library"),
     "科研助手": ("assistant", "auto_awesome"),
+    "实验知识库": ("experimental", "table_view"),
 }
 
 
