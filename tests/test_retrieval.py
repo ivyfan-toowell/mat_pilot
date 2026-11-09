@@ -155,8 +155,7 @@ def test_knowledge_http_validation_and_missing_database():
     try:
         with TestClient(app) as client:
             assert (
-                client.post("/api/v1/knowledge/search", json={"question": " "}).status_code
-                == 422
+                client.post("/api/v1/knowledge/search", json={"question": " "}).status_code == 422
             )
             response = client.post("/api/v1/knowledge/search", json={"question": "test"})
             assert response.status_code == 503
