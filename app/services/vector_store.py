@@ -124,7 +124,8 @@ class VectorStore:
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT chunk_id,document_id,block_id,page_number,kind,
-                text,title,source_url,license,section_path,source_block_ids,1-(embedding <=> %s) AS similarity
+                text,title,source_url,license,section_path,source_block_ids,
+                1-(embedding <=> %s) AS similarity
                 FROM mp_chunks WHERE tenant_id=%s
                 AND (%s::uuid IS NULL OR document_id=%s)
                 AND 1-(embedding <=> %s) >= %s ORDER BY embedding <=> %s LIMIT %s""",
