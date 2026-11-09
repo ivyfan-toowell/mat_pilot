@@ -41,8 +41,9 @@ def test_missing_method_blocks_comparability():
     assert compare_pair(build(), build(analysis_method=EvidenceField())).status == "insufficient_evidence"
 
 def test_phase_change_incompatible():
-    item = build()
-    assert compare_pair(item, build(phase=observed_field(uuid4(), "rutile"))).status == "incompatible"
+    item, other = build(), build()
+    other.phase = observed_field(other.document_id, "rutile")
+    assert compare_pair(item, other).status == "incompatible"
 
 def test_same_label_different_papers_have_distinct_identity():
     a, b = build(), build()
@@ -50,8 +51,9 @@ def test_same_label_different_papers_have_distinct_identity():
     assert compare_pair(a, b).status == "comparable"
 
 def test_temperature_difference_is_caution_not_causation():
-    doc = uuid4()
-    report = compare_pair(build(), build(preparation_temperature=observed_field(doc, "600 C")))
+    item, other = build(), build()
+    other.preparation_temperature = observed_field(other.document_id, "600 C")
+    report = compare_pair(item, other)
     assert report.status == "caution"
     assert any(reason.field == "preparation_temperature" for reason in report.reasons)
 
