@@ -76,7 +76,7 @@ def _table_unit_evidence(
         if not lines:
             continue
         for header_index, header in enumerate(lines):
-            header_cells = [cell.strip() for cell in header.split("|")]
+            header_cells = [unicodedata.normalize("NFKC", cell).strip() for cell in header.split("|")]
             if len(header_cells) < 2:
                 continue
             gap_columns = [
@@ -90,10 +90,13 @@ def _table_unit_evidence(
             column = gap_columns[0]
             matching_rows = []
             for row in lines[header_index + 1 :]:
-                cells = [cell.strip() for cell in row.split("|")]
+                cells = [unicodedata.normalize("NFKC", cell).strip() for cell in row.split("|")]
                 if len(cells) != len(header_cells):
                     continue
-                if not re.search(rf"(?<![\w]){re.escape(sample_label)}(?![\w])", row, re.I):
+                if not re.search(
+                    rf"(?<![\w]){re.escape(unicodedata.normalize('NFKC', sample_label))}(?![\w])",
+                    unicodedata.normalize("NFKC", row), re.I,
+                ):
                     continue
                 if not any(
                     abs(float(value) - property_value) < 1e-8
@@ -144,20 +147,24 @@ def extract_from_selections(
                         raise ValueError(f"{key} missing evidence")
                     # Must be text present in selected field evidence; avoid inferred values.
                     if (
-                        f.value.strip().casefold()
-                        not in " ".join(ref.quote for ref in refs).casefold()
+                        unicodedata.normalize("NFKC", f.value.strip()).casefold()
+                        not in unicodedata.normalize(
+                            "NFKC", " ".join(ref.quote for ref in refs)
+                        ).casefold()
                     ):
                         raise ValueError(f"{key} not verbatim supported")
                     fields[key] = EvidenceField(value=f.value, status="reported", evidence=refs)
                 else:
                     fields[key] = EvidenceField(status=f.status)
             property_refs = [quote(span) for span in item.property_spans]
-            combined = " ".join(ref.quote for ref in property_refs)
+            combined = unicodedata.normalize(
+                "NFKC", " ".join(ref.quote for ref in property_refs)
+            )
             numbers = re.findall(r"(?<![A-Za-z0-9])\d+(?:\.\d+)?", combined)
             if not any(abs(float(n) - item.property_value) < 1e-8 for n in numbers):
                 raise ValueError("property_value not in evidence")
             label = fields["local_sample_label"].value or ""
-            if label.casefold() not in combined.casefold():
+            if unicodedata.normalize("NFKC", label).casefold() not in combined.casefold():
                 raise ValueError("sample-to-value link unproven in selected span")
             if not re.search(r"(?<![A-Za-z])eV(?![A-Za-z])", combined, re.I):
                 header_evidence = _table_unit_evidence(
