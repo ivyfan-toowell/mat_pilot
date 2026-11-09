@@ -69,6 +69,23 @@ def enqueue_extract(
     )
 
 
+@router.post(
+    "/experimental-knowledge/extract",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def enqueue_structured_extract(
+    body: ExtractJobRequest,
+    response: Response,
+    settings: SettingsDep,
+    principal: PrincipalDep,
+) -> JobAccepted:
+    return _accept(
+        response, settings, principal,
+        "structured_experiment_extract", body.model_dump(mode="json")
+    )
+
+
 @router.get("/{job_id}", response_model=JobRecord)
 def get_job(job_id: UUID, settings: SettingsDep, principal: PrincipalDep) -> JobRecord:
     return JobStore(tenant_data_dir(settings, principal.tenant_id)).load(job_id)
