@@ -6,7 +6,15 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from ui.shared import JobFailed, api_headers, page_header, request_error, run_job
+from ui.shared import (
+    JobFailed,
+    api_headers,
+    document_label,
+    get_json,
+    page_header,
+    request_error,
+    run_job,
+)
 
 PREFIX = "/api/v1/experimental-knowledge"
 
@@ -27,19 +35,46 @@ def render(backend_url: str) -> None:
     st.caption(
         "V0.9：仅支持人工上传且已经解析的文本 PDF。实验提取调用付费模型；自动提取不代表人工审核。"
     )
-    doc_id = st.text_input("已解析文献 UUID（可选）", placeholder="粘贴论文解析页面的 document_id")
+    pending_document_id = st.session_state.pop("pending_document_id", None)
+    if pending_document_id:
+        st.session_state.active_document_id = pending_document_id
+    try:
+        documents = get_json(backend_url, "/api/v1/documents")
+    except (httpx.HTTPError, ValueError) as exc:
+        request_error(exc, "无法加载已解析论文列表，请检查后端连接。")
+        return
+
+    document_lookup = {item["document_id"]: item for item in documents}
+    active_id = st.session_state.get("active_document_id")
+    if active_id not in document_lookup:
+        st.session_state.active_document_id = None
+    doc_id = st.selectbox(
+        "选择已解析论文",
+        [None, *document_lookup],
+        key="active_document_id",
+        format_func=lambda value: (
+            "全部论文（浏览和对比已入库记录）"
+            if value is None
+            else document_label(document_lookup[value])
+        ),
+        help="直接按论文标题选择，系统自动关联文献 ID；选择论文不会调用付费模型。",
+    )
+    if not documents:
+        st.info("尚无已解析论文，请先在「论文解析」上传 PDF。")
+    elif doc_id:
+        st.caption(f"已选：{document_lookup[doc_id]['filename']}")
     col1, col2 = st.columns(2)
     with col1:
         formula = st.text_input("化学式过滤（可选）", placeholder="TiO2")
     with col2:
         only_approved = st.checkbox("仅显示人工审核通过")
-    if st.button("提取所选论文的结构化实验信息", disabled=not doc_id.strip()):
+    if st.button("提取所选论文的结构化实验信息", disabled=not doc_id):
         try:
             with st.spinner("正在提取样品与实验条件…"):
                 outcome = run_job(
                     backend_url,
                     "/api/v1/jobs/experimental-knowledge/extract",
-                    {"document_id": doc_id.strip()},
+                    {"document_id": doc_id},
                     240,
                 )
             st.success(f"本次入库 {outcome['stored']} 条记录")
@@ -49,8 +84,8 @@ def render(backend_url: str) -> None:
             request_error(exc, "提取失败，历史审核记录未被修改。")
     try:
         params = {"limit": 100}
-        if doc_id.strip():
-            params["document_id"] = doc_id.strip()
+        if doc_id:
+            params["document_id"] = doc_id
         if formula.strip():
             params["formula"] = formula.strip()
         if only_approved:
