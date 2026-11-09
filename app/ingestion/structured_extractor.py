@@ -5,6 +5,7 @@ be verified are not published. No OCR / chart digitization is performed.
 """
 from __future__ import annotations
 import json
+from uuid import uuid5
 from pydantic import BaseModel, Field, ValidationError
 from app.core.config import Settings
 from app.core.errors import ServiceError
@@ -74,7 +75,9 @@ def extract_from_selections(document: ParsedDocument, tenant_id: str,
             if label.casefold() not in combined.casefold():
                 raise ValueError("sample-to-value link unproven in selected span")
             accepted.append(ExperimentalObservation(
-                tenant_id=tenant_id, document_id=document.document_id, **fields,
+                tenant_id=tenant_id, document_id=document.document_id,
+                sample_id=uuid5(document.document_id, fields['local_sample_label'].value.strip().casefold()),
+                **fields,
                 property_value=item.property_value, property_evidence=property_refs,
             ))
         except (ValueError, KeyError, ValidationError) as exc:
