@@ -1,8 +1,17 @@
 """加载统一双端界面及五个工作区，通过 FastAPI 访问真实科研服务。"""
 
 import os
+import sys
+from pathlib import Path
 
-from ui import (
+# Streamlit executes the selected script with its directory on sys.path. Ensure
+# the repository root is importable even for the legacy "streamlit run ui/app.py"
+# entrypoint, without depending on a session-scoped PYTHONPATH.
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from ui import (  # noqa: E402
     agent_page,
     document_page,
     experimental_knowledge_page,
@@ -10,7 +19,7 @@ from ui import (
     literature_page,
     material_page,
 )
-from ui.shared import setup_shell
+from ui.shared import setup_shell  # noqa: E402
 
 backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 workspace = setup_shell(backend_url)
