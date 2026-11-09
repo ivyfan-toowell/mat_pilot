@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.api.agent import router as agent_router
 from app.api.documents import router as documents_router
+from app.api.experimental_knowledge import router as experimental_knowledge_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.api.knowledge import router as knowledge_router
@@ -51,6 +52,7 @@ app.add_middleware(RequestContextMiddleware)
 for router in (
     materials_router,
     documents_router,
+    experimental_knowledge_router,
     knowledge_router,
     literature_router,
     agent_router,
