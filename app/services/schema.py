@@ -40,7 +40,10 @@ def apply_schema(settings: Settings) -> None:
             document_id uuid NOT NULL REFERENCES mp_documents ON DELETE CASCADE,
             block_id text NOT NULL, page_number integer NOT NULL,
             kind text NOT NULL, text text NOT NULL, title text NOT NULL,
-            source_url text, license text, embedding vector({}),
+            source_url text, license text,
+            section_path jsonb NOT NULL DEFAULT '[]'::jsonb,
+            source_block_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+            embedding vector({}),
             tenant_id text NOT NULL DEFAULT 'local')""").format(
                 sql.Literal(settings.embedding_dimensions)
             )
@@ -50,6 +53,10 @@ def apply_schema(settings: Settings) -> None:
             "NOT NULL DEFAULT 'local'",
             "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS tenant_id text "
             "NOT NULL DEFAULT 'local'",
+            "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS section_path jsonb "
+            "NOT NULL DEFAULT '[]'::jsonb",
+            "ALTER TABLE mp_chunks ADD COLUMN IF NOT EXISTS source_block_ids jsonb "
+            "NOT NULL DEFAULT '[]'::jsonb",
             "CREATE INDEX IF NOT EXISTS mp_docs_tenant ON mp_docs(tenant_id)",
             "CREATE INDEX IF NOT EXISTS mp_experiments_tenant ON mp_experiments(tenant_id)",
             "CREATE INDEX IF NOT EXISTS mp_chunks_document ON mp_chunks(document_id)",
