@@ -3,6 +3,7 @@
 import hashlib
 import logging
 import re
+import unicodedata
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,8 +21,9 @@ MAX_PDF_BYTES = 30 * 1024 * 1024
 
 
 def clean_text(text: str) -> str:
-    return re.sub(r"[ \t]+", " ", text.replace("\x00", "").replace("\u00ad", "")).strip()
-
+    """Normalize fullwidth Chinese-PDF glyphs, while retaining raw_text separately."""
+    normalized = unicodedata.normalize("NFKC", text.replace("\x00", "").replace("\u00ad", ""))
+    return re.sub(r"[ \t]+", " ", normalized).strip()
 
 def parse_pdf(path: Path, document_id: UUID, filename: str) -> ParsedDocument:
     try:
