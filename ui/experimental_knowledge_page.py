@@ -6,7 +6,7 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-from ui.shared import api_headers, page_header, request_error, run_job
+from ui.shared import JobFailed, api_headers, page_header, request_error, run_job
 
 PREFIX = "/api/v1/experimental-knowledge"
 
@@ -45,7 +45,7 @@ def render(backend_url: str) -> None:
             st.success(f"本次入库 {outcome['stored']} 条记录")
             for warning in outcome.get("warnings", []):
                 st.warning(warning)
-        except (httpx.HTTPError, ValueError, KeyError) as exc:
+        except (JobFailed, TimeoutError, httpx.HTTPError, ValueError, KeyError) as exc:
             request_error(exc, "提取失败，历史审核记录未被修改。")
     try:
         params = {"limit": 100}
