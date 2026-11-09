@@ -2,6 +2,7 @@
 
 No backend or API keys are required; only the UI import/startup path is tested.
 """
+
 from pathlib import Path
 
 import pytest
