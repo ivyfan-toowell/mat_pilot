@@ -62,13 +62,11 @@ def verify_original_citations(
             document = documents[hit.document_id]
             allowed = set(hit.source_block_ids or [hit.block_id])
             sources = [
-                block for block in document.blocks
+                block
+                for block in document.blocks
                 if block.block_id in allowed and block.page_number == hit.page_number
             ]
-            if not any(
-                normalized(citation.quote) in normalized(block.text)
-                for block in sources
-            ):
+            if not any(normalized(citation.quote) in normalized(block.text) for block in sources):
                 raise ValueError("citation_not_in_original_pdf_block")
 
 
@@ -86,10 +84,7 @@ class RagService:
         by_id = {block.block_id: block for block in document.blocks}
         for chunk in chunks:
             refs = chunk.source_block_ids or [chunk.block_id]
-            if any(
-                ref not in by_id or by_id[ref].page_number != chunk.page_number
-                for ref in refs
-            ):
+            if any(ref not in by_id or by_id[ref].page_number != chunk.page_number for ref in refs):
                 raise ServiceError(
                     "chunk_provenance_invalid", "Chunk 原文块关联不可靠，已阻止建立索引。", 422
                 )

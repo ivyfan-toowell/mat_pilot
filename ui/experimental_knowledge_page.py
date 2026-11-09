@@ -147,9 +147,7 @@ def render(backend_url: str) -> None:
             ).json()
             audit_valid = audit["valid"]
             if audit_valid:
-                st.success(
-                    f"来源块、页码及数值匹配：已核对 {audit['checked_references']} 处引用"
-                )
+                st.success(f"来源块、页码及数值匹配：已核对 {audit['checked_references']} 处引用")
             else:
                 st.error("解析文本证据校验未通过：" + "、".join(audit["issues"]))
             for warning in audit.get("warnings", []):
@@ -163,8 +161,7 @@ def render(backend_url: str) -> None:
             if st.button(
                 "提交人工审核",
                 disabled=not (
-                    reviewer.strip() and note.strip()
-                    and (decision == "rejected" or audit_valid)
+                    reviewer.strip() and note.strip() and (decision == "rejected" or audit_valid)
                 ),
             ):
                 try:

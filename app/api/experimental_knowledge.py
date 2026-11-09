@@ -92,9 +92,7 @@ def extract(document_id: UUID, settings: SettingsDep, principal: PrincipalDep):
 
 
 @router.get("/observations/{observation_id}/audit", response_model=EvidenceAudit)
-def audit_saved_observation(
-    observation_id: UUID, settings: SettingsDep, principal: PrincipalDep
-):
+def audit_saved_observation(observation_id: UUID, settings: SettingsDep, principal: PrincipalDep):
     record = store(settings, principal.tenant_id).get(observation_id)
     document = DocumentService(
         tenant_data_dir(settings, principal.tenant_id), settings, principal.tenant_id

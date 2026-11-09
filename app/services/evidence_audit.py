@@ -48,9 +48,7 @@ def _normal(text: str) -> str:
     return re.sub(r"\s+", "", text).casefold()
 
 
-def audit_observation(
-    document: ParsedDocument, record: ExperimentalObservation
-) -> EvidenceAudit:
+def audit_observation(document: ParsedDocument, record: ExperimentalObservation) -> EvidenceAudit:
     issues: list[str] = []
     count = 0
     if record.document_id != document.document_id:
@@ -89,9 +87,7 @@ def audit_observation(
         if document.parser_engine == "mineru"
         else ["原文匹配不等于实验结论正确；请核对 PDF 原页。"]
     )
-    if any(
-        getattr(record, name).status == "derived" for name in FIELDS
-    ):
+    if any(getattr(record, name).status == "derived" for name in FIELDS):
         warnings.append("含系统推导的样品或实验条件，必须人工核对对应关系。")
     return EvidenceAudit(
         valid=not issues,

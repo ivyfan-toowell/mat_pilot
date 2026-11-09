@@ -48,8 +48,9 @@ def chunk_document(document: ParsedDocument, size: int = 1800, overlap: int = 20
     page: int | None = None
     section: tuple[str, ...] = ()
 
-    def emit(parts: list[tuple[str, str]], page_number: int, path: tuple[str, ...],
-             kind: str = "text") -> None:
+    def emit(
+        parts: list[tuple[str, str]], page_number: int, path: tuple[str, ...], kind: str = "text"
+    ) -> None:
         if not parts:
             return
         ids = [block_id for block_id, _ in parts]
@@ -57,10 +58,10 @@ def chunk_document(document: ParsedDocument, size: int = 1800, overlap: int = 20
         body = "\n\n".join(f"[来源块 {block_id}]\n{content}" for block_id, content in parts)
         result.append(
             Chunk(
-                chunk_id=uuid5(NAMESPACE_URL, (
-                    f"{document.document_id}/{page_number}/{kind}/"
-                    f"{','.join(ids)}/{len(result)}"
-                )),
+                chunk_id=uuid5(
+                    NAMESPACE_URL,
+                    (f"{document.document_id}/{page_number}/{kind}/{','.join(ids)}/{len(result)}"),
+                ),
                 document_id=document.document_id,
                 block_id=ids[0],
                 page_number=page_number,
