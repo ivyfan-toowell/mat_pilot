@@ -151,3 +151,49 @@ def test_mineru_missing_configuration_is_safe(tmp_path):
     with pytest.raises(ServiceError) as caught:
         service.ingest(data, "test.pdf", parser_engine="mineru")
     assert caught.value.code == "mineru_not_configured"
+
+
+def test_docvortex_middle_v2_normalized_bbox_and_inline_content(tmp_path):
+    pdf = pymupdf.open()
+    pdf.new_page(width=600, height=800)
+    original = tmp_path / "normalized.pdf"
+    original.write_bytes(pdf.tobytes())
+    pdf.close()
+    middle = {
+        "schema": "docvortex.middle",
+        "schema_version": "2.0",
+        "metadata": {"file_suffix": "pdf", "producer": {"name": "mineru", "version": "4.0"}},
+        "is_full_document": True,
+        "pages": [
+            {
+                "page_idx": 0,
+                "blocks": [
+                    {
+                        "type": "title",
+                        "index": 0,
+                        "bbox": [0.1, 0.1, 0.9, 0.15],
+                        "content": [
+                            {"type": "text", "content": "氮气退火对二氧化钛薄膜光学性能的影响"}
+                        ],
+                    },
+                    {
+                        "type": "text",
+                        "index": 1,
+                        "bbox": [0.1, 0.2, 0.5, 0.3],
+                        "content": [
+                            {"type": "text", "content": "3.98 eV"}
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+    archive = tmp_path / "result.zip"
+    with zipfile.ZipFile(archive, "w") as stream:
+        stream.writestr("middle_json.json", json.dumps(middle))
+    parsed = parse_mineru_zip(original, uuid4(), "paper.pdf", archive)
+    assert parsed.parser_engine == "mineru"
+    assert parsed.blocks[0].role == "title"
+    assert parsed.blocks[1].text == "3.98 eV"
+    assert parsed.blocks[1].bbox == pytest.approx((60.0, 160.0, 300.0, 240.0))
+    assert parsed.blocks[1].page_number == 1
