@@ -60,9 +60,9 @@ def test_mineru_zip_converts_hierarchy_to_page_coordinates(tmp_path):
                             {
                                 "type": "table_body",
                                 "table_body": (
-                                "<table><tr><td>Sample</td><td>Band gap (eV)</td></tr>"
-                                "<tr><td>S1</td><td>3.98</td></tr></table>"
-                            ),
+                                    "<table><tr><td>Sample</td><td>Band gap (eV)</td></tr>"
+                                    "<tr><td>S1</td><td>3.98</td></tr></table>"
+                                ),
                             }
                         ],
                     },
