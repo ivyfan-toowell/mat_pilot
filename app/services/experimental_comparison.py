@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from itertools import combinations
 
+from app.services.experimental_normalization import normalized_field
 from app.schemas.experimental_knowledge import (
     ComparisonReason,
     ComparisonReport,
@@ -21,9 +22,6 @@ CONTEXT = (
     "measurement_conditions",
 )
 
-
-def _norm(value: str | None) -> str:
-    return " ".join((value or "").casefold().split())
 
 
 def compare_pair(left: ExperimentalObservation, right: ExperimentalObservation) -> PairComparison:
@@ -57,7 +55,7 @@ def compare_pair(left: ExperimentalObservation, right: ExperimentalObservation) 
                     detail="At least one record lacks unambiguous evidence",
                 )
             )
-        elif _norm(a.value) != _norm(b.value):
+        elif normalized_field(name, a.value) != normalized_field(name, b.value):
             reason = ComparisonReason(
                 code="reported_values_differ",
                 field=name,
