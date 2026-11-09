@@ -1,301 +1,323 @@
 # MatPilot
 
-**面向半导体与光电材料科研的文献 RAG 与多 Agent 分析平台。**
+### 面向材料科学研究的循证 AI Agent 工作台
 
-从材料筛选、论文发现和 PDF 解析，到实验信息提取、带引用问答与多角色协作，
-MatPilot 将材料计算数据和论文原文组织在同一个科研工作台中。
-当前优先围绕氧化物半导体场景开发，使用中文界面与中文模型提示词。
+**MatPilot** 是一个聚焦半导体与光电材料的 AI for Science 应用项目，以**跨论文实验知识提取与对比分析**为核心场景，连接材料计算数据、科研论文、实验记录与多 Agent 分析流程。
 
-每条科研结论应能追溯到数据来源：计算值与实验值分别保存，缺失字段保留为空，
-模型输出保留原文、页码与处理轨迹，便于研究者核查。
+项目希望解决实际科研工作中的三个问题：不同论文的实验数据分散且难以比较；复杂 PDF 的版面和表格影响信息提取；大模型给出的科研结论需要有可复核的来源。
 
-**项目状态：** 已完成 V0.1 本机工作流验收与企业化 P0–P2（租户、异步任务、文档 SSOT、可观测、`/api/v1`）。
-默认本机租户 `local`；完整多模态与 P3（评测扩容 / 人审）仍在建设中。
+MatPilot 将 **PDF 结构化解析 → 实验观察记录 → 语义检索 → 跨论文比较 → 人工证据审核**组织在统一工作流中。计算数据与实验数据分别标注，缺失字段保持缺失，任何跨样品或跨论文的比较都必须考虑测量方法与实验条件。
 
-## 核心功能
+> **项目阶段：V0.9 + V0.10 开发分支。** 已实现主要模块并通过离线自动化检查；MinerU 本地 GPU → FastAPI → PostgreSQL → 检索与人工审核的完整联调仍需在真实运行环境验收。项目是科研辅助工具，不自动认定实验因果关系或替代科研人员判断。
 
-| 工作区 | 当前能力 | 数据与证据 |
+---
+
+## 01 · 产品定位与核心场景
+
+MatPilot 面向材料科研中从文献调研到实验对比的常见任务，当前重点关注**实验光学带隙**（Optical Band Gap）的结构化整理与证据关联。
+
+一个典型研究问题是：
+
+> 不同退火温度、掺杂方式和表征方法下，TiO₂ 等材料的实验光学带隙如何变化？论文之间的结果能否直接比较？
+
+平台将研究问题拆为可执行的步骤：导入具有合法使用权限的论文；解析标题、章节和实验段落；识别样品、材料、工艺、测量方法与数值；保留原文证据；由规则与 Agent 协助比较；最后交由研究者确认。
+
+**设计约束**
+
+- **实验值与计算值分离**：Materials Project 计算属性不自动充当实验测量值。
+- **样品级证据**：每条候选结果关联文献、样品标识、页码、原文块和摘录。
+- **缺失不补造**：未报告的晶相、掺杂量或测试条件保留为空或待核查。
+- **可比性先于推论**：不同晶相、实验方法或条件可能导致结果不可直接比较。
+- **人类最终审核**：模型辅助提取与 Reviewer 不等于独立科研鉴定。
+
+## 02 · 核心功能
+
+| 工作区 | 实现能力 | 说明 |
 | --- | --- | --- |
-| 材料筛选 | 按化学式、元素、带隙及稳定性条件查询，查看材料详情、结构和比较结果 | Materials Project 实时计算数据，保存查询参数及 JSON / CSV 快照 |
-| 论文发现 | DOI / 关键词查询，按年份、开放获取状态等筛选 | OpenAlex 在线元数据；检索到论文不代表已读取全文 |
-| 论文解析 | 文本 PDF 解析，保留页码、文本块及表格，提取带隙与相关实验信息 | 本地上传的全文；提取记录关联原文证据并保留待审核状态 |
-| 文献知识库 | 文献索引、Dense / BM25L / RRF 混合检索、可选 Rerank、带引用问答 | PostgreSQL + pgvector，支持查看匹配片段和页码 |
-| 科研助手 | LangGraph 单 Agent、自动路由及多角色协作，回读历史任务 | 有界工具调用、来源引用、阶段记录及独立 Reviewer 复核 |
+| **材料筛选** | 化学式、元素、带隙与稳定性检索，材料详情及结构展示 | 来源为 Materials Project 的计算数据 |
+| **论文发现** | 关键词/DOI 检索、开放获取与元数据查看 | OpenAlex 元数据不等于已获取论文全文 |
+| **论文解析** | 上传 PDF、逐页查看、标题/章节/表格识别、可选 MinerU 重解析 | 保留原始 PDF、页码、坐标与来源块 |
+| **文献知识库** | Dense、BM25L、RRF 混合检索、可选 Rerank、引用式问答 | PostgreSQL + pgvector |
+| **实验知识库** | 样品级实验光学带隙提取、条件关联、审核、跨论文对比与导出 | 机器记录默认需人工审核 |
+| **科研助手** | 单 Agent、自动路由、多角色协作、任务记录与 Reviewer | LangGraph 编排，有界工具调用 |
 
-界面采用米白、暖灰和浅棕配色，优先使用微软雅黑。电脑端使用侧边导航，手机尺寸视口使用底部导航，
-支持按名称选择文献、原文弹窗与跨工作区保留输入。响应式布局不会自动将本地服务发布到手机或公网。
+当前实验知识库的结构化物性范围主要是 **实验光学带隙（eV）**。光电流、响应度、电阻率、迁移率等更广泛物性尚未形成通用结构化提取链路。
 
-## 项目架构
+## 03 · 系统架构
 
-~~~mermaid
+```mermaid
 flowchart TD
-    UI["Streamlit · 五个工作区"] --> API["FastAPI · /api/v1"]
-    API --> AUTH["Principal · API Key / local"]
-    AUTH --> TENANT["tenants/{id} 文件与向量"]
-    API --> JOBS["JobWorker · 异步长任务"]
-    API --> MAT["材料查询与比较"]
-    API --> LIT["论文发现"]
-    API --> DOC["DocumentService / DocumentStore"]
-    API --> RAG["文献检索与引用问答"]
-    API --> AGENT["research + tools/claims + collaboration"]
-    MAT --> MP["Materials Project"]
-    LIT --> OA["OpenAlex · 元数据"]
-    DOC --> PARSE["PyMuPDF / pdfplumber"]
-    DOC --> LLM["LLMClient · DashScope"]
-    DOC --> FILES["租户目录 · PDF / 审计 / 快照 / jobs"]
-    RAG --> LLM
-    RAG <--> PG[("PostgreSQL · mp_docs / mp_chunks")]
-    AGENT --> MAT
-    AGENT --> LIT
-    AGENT --> RAG
-    AGENT --> FILES
-    JOBS --> AGENT
-    JOBS --> DOC
-    JOBS --> RAG
-~~~
+    U["Streamlit 科研工作台"] --> API["FastAPI /api/v1"]
+    API --> M["材料数据服务"]
+    API --> L["文献发现服务"]
+    API --> D["DocumentService"]
+    API --> K["RAG 与实验知识库"]
+    API --> A["LangGraph 科研 Agent"]
+    API --> J["后台 JobWorker"]
+    M --> MP["Materials Project"]
+    L --> OA["OpenAlex"]
+    D --> P["PyMuPDF + pdfplumber（默认）"]
+    D --> MU["MinerU（独立环境，可选）"]
+    P --> PD["统一 ParsedDocument / SourceBlock"]
+    MU --> PD
+    PD --> CH["结构感知 Chunk"]
+    PD --> EX["实验字段提取 + Evidence Audit"]
+    CH --> V["PostgreSQL + pgvector / BM25L"]
+    V --> K
+    EX --> DB["实验观察记录 + 人工审核"]
+    DB --> K
+    K --> A
+    A --> W["Planner / 专家 / Analysis / Reviewer"]
+    J --> D
+    J --> K
+    J --> A
+```
 
-协作流程包含 Planner、材料专家、文献专家、Analysis 和独立 Reviewer，按任务依赖调用受限工具。
-详细调用关系见 [架构说明](docs/architecture.md) 与 [多角色协作](docs/collaboration.md)。
-
-| 层次 | 技术 |
+| 层次 | 技术栈 |
 | --- | --- |
-| 运行环境 | Python **3.13**，uv 与 `uv.lock` |
-| 界面与接口 | Streamlit、FastAPI、Pydantic |
-| 材料与论文 | mp-api、pymatgen、OpenAlex |
-| PDF 解析 | PyMuPDF、pdfplumber |
-| 检索与存储 | PostgreSQL 17、pgvector、Jieba、BM25L、RRF |
-| 模型与编排 | DashScope、通义千问、LangGraph |
-| 开发检查 | pytest、Ruff |
+| Python 与依赖管理 | Python 3.13、uv、uv.lock |
+| API / 界面 | FastAPI、Pydantic、Streamlit |
+| Agent 编排 | LangGraph、限制工具白名单的协作工作流 |
+| 论文解析 | PyMuPDF、pdfplumber；可选 MinerU 4.x 独立进程 |
+| 向量 / 稀疏检索 | text-embedding-v4、pgvector、BM25L、Jieba、RRF、可选 Rerank |
+| 模型服务 | DashScope 兼容接口（默认 qwen-plus） |
+| 数据库 | PostgreSQL 17 + pgvector，实验记录使用 JSONB |
+| 工程质量 | pytest、Ruff、Alembic、GitHub Actions |
 
-## 快速开始
+详细 Agent 编排参见 [多角色科研协作](docs/collaboration.md) 和 [项目架构](docs/architecture.md)。
 
-以下命令使用 **PowerShell**，请在项目根目录执行。主要开发与验收环境为 Windows；
-其他系统需自行调整终端命令并验证运行环境。
+## 04 · V0.10 PDF 解析与 RAG 升级
 
-### 1. 准备环境并克隆
+### V0.10.1 · 双解析引擎与统一文档模型
 
-需要 Git、Python **3.13**、uv、Docker Desktop（或支持 Compose 的 Docker 环境）。
-本仓库为私有仓库时，克隆前需要使用有访问权限的 GitHub 账户完成 Git 身份验证。
+默认的 **PyMuPDF** 负责快速读取文本 PDF，结合 pdfplumber 处理表格，并执行全角字符规范化、期刊页眉过滤、标题识别和基础阅读顺序修复。
 
-~~~powershell
+对于双栏、复杂版面、公式密集或扫描文档，可选择**独立 MinerU 进程**执行高精度解析。MinerU 不加入 MatPilot Python 3.13 的主依赖，降低 GPU 环境与服务依赖之间的耦合。
+
+两个引擎统一输出 `ParsedDocument` / `SourceBlock`，包括：
+
+- `document_id`、`parser_engine`、`parent_document_id`（重解析版本关系）
+- `page_number`、`bbox`、`block_id`（定位来源）
+- `role`、`section_title`、`section_path`（标题、正文、章节、表格、公式或图注）
+
+MinerU 重解析会**创建新文献版本**，不覆盖旧 PDF、已经审核的实验记录或已有索引。OCR 文本仍需回到 PDF 原页复核；缺失或不可靠的坐标不会自动编造。
+
+### V0.10.2 · 结构感知 Chunk
+
+Chunk 不再仅依赖固定字符长度，而是结合**章节、页面、段落和表格**组织：
+
+- 同一页面、同一章节内的相邻段落可组合为检索单元。
+- 长文本优先沿段落或句子边界切分。
+- 表格保留整体内容、表头与数据行。
+- `section_path` 和 `source_block_ids` 写入向量索引，以便定位原文。
+- 内嵌 Base64 图片不进入文本 Embedding。
+
+当前实现着重保证来源可追溯。跨页实验语义关联、独立图像存储与图文多模态检索仍属于后续优化方向。
+
+### V0.10.3 · Agent、检索和证据审核联动
+
+文献 Chunk 通过 **Dense + BM25L + RRF** 检索，并可按需启用重排。科研助手接收来源段落、章节和页码等上下文，程序进一步验证模型引用是否确实存在于对应的原始解析块中。
+
+实验知识库中的结构化候选记录还会校验：
+
+1. 文献与来源块是否对应；
+2. 页码与原文摘录是否匹配；
+3. 提取的光学带隙数值能否在证据文本中找到；
+4. 推导出的样品标识或实验条件是否被标记为需人工审核。
+
+人工审核记录与导出结果保留来源。上述检查验证的是**解析文本内的引用一致性**，不等于 OCR 绝对准确或科研结论正确。
+
+进一步的配置、数据迁移及验收约束见 [MinerU 集成说明](docs/v0.10/mineru-integration.md)。
+
+## 05 · 快速开始（Windows / PowerShell）
+
+### 5.1 环境准备
+
+推荐安装：
+
+- Git、Python **3.13**、[uv](https://docs.astral.sh/uv/)
+- Docker Desktop（用于 PostgreSQL + pgvector）
+- 需要调用对应功能时配置 Materials Project 与 DashScope API Key
+- 可选：独立 MinerU 环境（详见下一节）
+
+```powershell
 git clone https://github.com/ivyfan-toowell/mat_pilot.git
-Set-Location mat_pilot
+cd mat_pilot
+
+# 安装后端、数据库和 Streamlit 依赖
 uv sync --locked --all-extras
 
-# 仅在 .env 不存在时复制，保留已有配置。
+# 首次创建本地配置；已有 .env 时不会覆盖
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-~~~
+```
 
-`--all-extras` 安装界面与 PostgreSQL 依赖；后续 `uv run` 同样带上该选项，保持环境一致。
-依赖由 `uv.lock` 固定，当前默认使用阿里云 PyPI 镜像。
+> 注意：截至本 README 更新，V0.9/V0.10 修改位于 `feature/v0.9-research-analysis` / PR #2。若尚未合并到 `main`，请在首次克隆后执行 `git switch feature/v0.9-research-analysis`（必要时先 `git fetch origin`），再运行 `uv sync`。
 
-### 2. 配置服务
+### 5.2 配置 .env
 
-在本地编辑 `.env`，填写自己的密钥。密钥由服务端读取，不要提交到仓库或粘贴到讨论区。
+在根目录的 `.env` 中填写密钥与连接参数。不要把真实密钥提交到 GitHub。
 
-| 配置项 | 用途 | 说明 |
-| --- | --- | --- |
-| `MP_API_KEY` | Materials Project 材料查询 | 材料工作流及完整就绪检查需要 |
-| `DASHSCOPE_API_KEY` | 文本生成、Embedding 和可选 Rerank | 建立向量索引、模型提取与问答需要 |
-| `OPENALEX_API_KEY` | OpenAlex 论文发现 | 可选；不影响其他模块的配置检查 |
-| `LLM_BASE_URL` / `LLM_MODEL` | 通义兼容接口与生成模型 | 默认北京地域接口、`qwen-plus` |
-| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS` | 向量模型与维度 | 默认 `text-embedding-v4`、1024 维 |
-| `RERANK_URL` / `RERANK_MODEL` | 重排接口与模型 | 默认 `qwen3-rerank`；重排默认关闭 |
-| `DATABASE_URL` / `POSTGRES_*` | 数据库连接 | 首次本地使用可由下方脚本填充缺失凭据 |
-| `AUTH_MODE` / `AUTH_API_KEYS` | API Key 认证与租户 | 默认 `off`（租户 `local`）；共享部署设为 `api_key` |
-| `MATPILOT_API_KEY` | Streamlit 调用后端 | 与某个 `AUTH_API_KEYS` 中的 key 一致 |
-| `JOB_WORKERS` | 异步任务线程数 | 默认 2；界面长任务经 `/api/v1/jobs/*` 入队 |
-| `RATE_LIMIT_*` / `LOG_JSON` | 限流与日志 | 默认限流关闭；生产建议开启并使用 JSON 日志 |
-| `SCHEMA_AUTO_APPLY` / `VECTOR_HNSW` | 库表与向量索引 | 启动自动 DDL；可选 HNSW |
+| 配置 | 用途 |
+| --- | --- |
+| `MP_API_KEY` | Materials Project 数据 |
+| `DASHSCOPE_API_KEY` | LLM、Embedding 与可选 Rerank |
+| `OPENALEX_API_KEY` | 论文发现（可选） |
+| `DATABASE_URL` / `POSTGRES_*` | PostgreSQL 连接 |
+| `LLM_MODEL` | 默认 `qwen-plus` |
+| `EMBEDDING_MODEL` / `EMBEDDING_DIMENSIONS` | 默认 `text-embedding-v4` / 1024 |
+| `AUTH_MODE` / `AUTH_API_KEYS` | 本机或 API Key 租户模式 |
+| `SCHEMA_AUTO_APPLY` | 启动时自动补充数据库表结构 |
+| `MINERU_CLI_PATH` | 可选 MinerU 可执行程序路径 |
+| `MINERU_TIMEOUT_SECONDS` | 可选解析超时（秒） |
 
-业务数据保存在 `data/tenants/{tenant_id}/`。推荐迁移顺序：
+全部变量见 [配置模板](.env.example)。
 
-~~~powershell
-# 1) 填充缺失的本地数据库密码与连接串（不打印密码）。
-uv run --locked --all-extras python -m scripts.setup_database
-# 2) 旧扁平 data/* → tenants/local（若仍有旧布局）。
-uv run --locked --all-extras python -m scripts.migrate_tenant_local
-# 3) 启动 DB 后，schema 可由 SCHEMA_AUTO_APPLY 或显式执行：
-#    uv run --locked --all-extras python -m scripts.apply_schema
-#    或：uv run --locked --all-extras alembic upgrade head
-# 4) 旧 parsed.json / experiments.json → Postgres SSOT。
-uv run --locked --all-extras python -m scripts.migrate_docs_to_postgres
-~~~
+### 5.3 启动 PostgreSQL 并迁移
 
-生产建议：`AUTH_MODE=api_key` + `AUTH_API_KEYS` + UI `MATPILOT_API_KEY`；
-`RATE_LIMIT_PER_MINUTE>0`、`LOG_JSON=true`；可选 `VECTOR_HNSW=true`。
+先启动 Docker Desktop，再在项目根目录执行：
 
-完整变量见 [`.env.example`](.env.example)。DashScope 接口地域必须与密钥匹配，
-跨地域使用时应同时核对生成、Embedding 与 Rerank 配置。
-更改 Embedding 模型或维度后，应重新建立兼容索引。
-
-### 3. 启动数据库和后端
-
-先启动 Docker Desktop，然后执行：
-
-~~~powershell
+```powershell
 uv run --locked --all-extras python -m scripts.setup_database
 docker compose up -d --wait db
 
-# 保持这个终端运行。
+# 首次部署或升级既有数据库，执行幂等迁移
+uv run --locked --all-extras alembic upgrade head
+```
+
+Compose 当前**只运行数据库**，默认对本机开放 `127.0.0.1:5433`。升级前建议备份既有 PostgreSQL 数据卷；不要为解决连接问题直接删除数据卷。
+
+### 5.4 分别运行后端与前端
+
+**Terminal 1 — FastAPI（8000）**
+
+```powershell
 uv run --locked --all-extras uvicorn app.main:app --host 127.0.0.1 --port 8000
-~~~
+```
 
-数据库映射到 `127.0.0.1:5433`，数据保存在 Docker 具名卷中。
-现有 Compose **仅启动数据库**，后端与界面分别运行。
+**Terminal 2 — Streamlit（8501）**
 
-### 4. 启动界面
-
-统一从仓库根目录的 `streamlit_app.py` 启动；Windows 也可直接运行 `./start_ui.ps1`。两种方式都不依赖临时设置 `PYTHONPATH`。原 `ui/app.py` 入口同样保留兼容性修复。
-
-
-新开终端并进入同一个项目目录：
-
-~~~powershell
+```powershell
 uv run --locked --all-extras streamlit run streamlit_app.py --server.address 127.0.0.1 --server.port 8501
-~~~
+```
 
-- 科研工作台：[http://127.0.0.1:8501](http://127.0.0.1:8501)
-- API 文档：[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- 进程存活：[`/health`](http://127.0.0.1:8000/health)
-- 配置与数据库就绪：[`/health/ready`](http://127.0.0.1:8000/health/ready)
+| 入口 | 地址 |
+| --- | --- |
+| 工作台 | http://127.0.0.1:8501 |
+| FastAPI Swagger | http://127.0.0.1:8000/docs |
+| 服务状态 | http://127.0.0.1:8000/health |
+| 数据库与配置就绪 | http://127.0.0.1:8000/health/ready |
 
-`/health/ready` 不调用付费模型；它检查必需密钥是否配置及数据库连接，
-不能代替第三方 API 的真实连通性验证。关闭服务终端或重启电脑后，需要重新启动服务。
+`/health/ready` 只检查配置与数据库状态，不代表付费模型调用和真实 PDF 解析已经验收。
 
-## 使用流程
+### 5.5 配置可选 MinerU
 
-1. **筛选材料**：设置化学式、带隙和稳定性条件，查询并保存 Materials Project 计算数据。
-2. **发现论文**：检索 DOI 或关键词，查看元数据、开放获取链接与许可信息。
-3. **解析全文**：自行获取有使用权限的 PDF 并上传，核对逐页文本和表格，再按需提取实验信息。
-4. **建立知识库**：将已解析文献加入索引，选择检索策略，查看原文或进行带引用问答。
-5. **开展分析**：使用科研助手调用材料与文献工具，回看答案、引用及协作轨迹并进行人工审核。
+MinerU 安装在**独立环境**，而不是 MatPilot 主项目的 `.venv` 中。在 `.env` 中设置，例如：
 
-页面读取已有文献与历史结果不会重新运行模型。索引、模型提取、生成回答及开启重排会调用外部服务，
-实际费用取决于服务商配置与用量。
+```dotenv
+MINERU_CLI_PATH=E:/AI Learning/matpilot_parser_benchmark/.venv/Scripts/mineru-kit.exe
+MINERU_TIMEOUT_SECONDS=1800
+```
 
-### 公开许可样例与命令行
+这只是路径示例，必须指向本机实际存在的 `mineru-kit.exe`。修改后重新启动后端。
 
-仓库提供样例下载脚本，论文 DOI 为 `10.3390/nano10030546`、PMCID 为 `PMC7153365`。
-脚本同时保存来源、CC BY 4.0 许可与文件哈希。下载后的 PDF 和解析结果仅保留在本地。
+进入「论文解析」→ 选择已上传文献 →「解析质量优化 · MinerU 高精度解析」→「使用 MinerU 重新解析所选论文」。该操作走后台任务；新的文献 UUID 需要单独建索引、提取实验记录并审核。
 
-~~~powershell
+当前适配器主要读取 MinerU ZIP 中的结构化 JSON。**真实 GPU 环境中能否完全兼容安装的 MinerU 版本，仍需联调确认。** 仅导出 Markdown 不能保证保留原文页码与坐标。
+
+## 06 · 推荐使用流程
+
+```mermaid
+flowchart LR
+    A["材料研究问题"] --> B["论文发现与合法全文获取"]
+    B --> C["PDF 上传与版面解析"]
+    C --> D["结构化文献与 Chunk"]
+    D --> E["向量与稀疏索引"]
+    D --> F["样品级实验观察记录"]
+    E --> G["Agent 检索与分析"]
+    F --> H["人工证据审核"]
+    H --> G
+    G --> I["跨论文可比性与报告"]
+```
+
+**推荐流程**：材料筛选 → 论文发现 → 上传 PDF → 核对标题/章节/表格 → 根据需要用 MinerU 重解析 → 为最终选定的文献版本建立索引 → 实验知识提取 → 原文审核 → 跨论文比较与科研问答。
+
+平台支持按文献名称选择已经解析的论文，普通使用者无需手动复制 UUID。对于同一论文的不同解析版本，应选用对应的文献记录，不要混用旧版证据。
+
+### 研究样例与验证边界
+
+项目曾以两篇中文论文进行小规模人工核对：
+
+- **氮气退火 TiO₂ 薄膜**：原文包含 500、600、700、800、900℃ 对应的 3.98、3.97、3.96、3.73、3.30 eV 实验数据；此前专门的中文序列提取逻辑曾成功存入 5 条待审核记录。
+- **CsPbBr₃/VO₂ 异质结构**：原文包含根据 PL 峰约 540 nm 估算的 CsPbBr₃ 带隙约 2.3 eV；此前专门的中文 PL 提取逻辑曾成功存入 1 条待审核记录。
+
+这些案例证明了有限场景可运行，**不能据此声称通用中文论文提取准确率、跨论文推理准确率或 MinerU 集成端到端完成验收**。
+
+如需可公开获取的英文样例，可运行：
+
+```powershell
 uv run --locked --all-extras python -m scripts.download_sample_paper
-uv run --locked --all-extras python -m scripts.parse_paper data/sample_papers/PMC7153365.pdf
+```
 
-# 将占位文字替换为上一步实际返回的 document_id。
-$documentId = '替换为解析返回的文献 UUID'
-uv run --locked --all-extras python -m scripts.extract_experiments $documentId
-uv run --locked --all-extras python -m scripts.knowledge index --document-id $documentId
-uv run --locked --all-extras python -m scripts.knowledge answer --document-id $documentId --question '论文报告了哪些光学带隙？'
+样例 PMCID 为 `PMC7153365`，DOI 为 `10.3390/nano10030546`。论文的许可、来源和具体使用范围仍需遵循原始文档声明。
 
-# 仅进行关键词检索；如需混合检索可选择 hybrid，按需增加 --rerank。
-uv run --locked --all-extras python -m scripts.knowledge search --document-id $documentId --question 'DRS 测试的扫描波长范围？' --retrieval-mode sparse
-~~~
+## 07 · 数据、审计与安全设计
 
-材料查询示例：
+- **文献 SSOT**：已解析文献存储在 PostgreSQL `mp_docs`，原始 PDF 留在租户目录。
+- **知识索引**：`mp_documents`、`mp_chunks`；Chunk 记录页码、来源块 ID 及章节路径。
+- **实验知识**：`mp_knowledge_runs`、`mp_knowledge_observations`、`mp_knowledge_reviews` 分别保存提取任务、候选记录与审核历史。
+- **隔离与认证**：默认单机 `local` 租户；共享环境应设置 `AUTH_MODE=api_key`。
+- **长任务**：进程内 JobWorker 与状态落盘；当前不具备跨进程分布式任务队列的完整容灾能力。
+- **模型成本**：Embedding、LLM、Rerank 和部分结构化提取会触发外部服务调用。
+- **可追溯性**：同一论文的不同解析版本有不同文献 ID，已有人工审核记录不会自动迁移或覆盖。
 
-~~~powershell
-uv run --locked --all-extras python -m scripts.query_materials --formula TiO2 --band-gap-min 0 --band-gap-max 10 --limit 3
-~~~
+文件目录与核心代码：
 
-## 目录结构与数据保存
-
-~~~text
+```text
 mat_pilot/
 ├── app/
-│   ├── agents/       # research 编排、tools、claims、多角色协作
-│   ├── api/          # HTTP 接口（路由前缀 /api/v1）
-│   ├── core/         # 配置、认证、中间件、日志与错误处理
-│   ├── evaluation/   # 检索评测指标
-│   ├── ingestion/    # PDF、表格、实验信息提取与分块
-│   ├── schemas/      # 数据模型与验证
-│   ├── science/      # 材料领域与 Materials Project 适配
-│   └── services/     # 检索、模型、向量库及业务服务
-├── ui/               # 五个工作区、共享组件与主题样式
-├── scripts/          # 环境检查、启动、导入及真实验收脚本
-├── tests/            # 离线自动化测试
-├── eval/             # 小规模检索评测标注
-├── docs/             # 架构、接口、设计规范和任务书
-├── .streamlit/       # 无密钥的界面配置
-├── data/             # 本地生成的数据与验收报告，不上传 Git
-├── .env.example      # 配置模板
+│   ├── agents/                   # LangGraph、专家协作、Reviewer
+│   ├── api/                      # FastAPI /api/v1
+│   ├── core/                     # 配置、租户、认证、日志
+│   ├── ingestion/                # PyMuPDF、MinerU、Chunk、实验提取
+│   ├── schemas/                  # 统一文档与科研证据模型
+│   ├── science/                  # 材料科学数据适配
+│   └── services/                 # RAG、数据库、审核与业务服务
+├── ui/                           # Streamlit 六个工作区
+├── alembic/                      # 数据库迁移
+├── scripts/                      # 数据库与样例脚本
+├── tests/                        # 自动化测试
+├── docs/                         # 设计、架构、使用与局限
+├── streamlit_app.py              # 前端入口
 ├── docker-compose.yml
+├── .env.example
 ├── pyproject.toml
 └── uv.lock
-~~~
+```
 
-`data/tenants/<tenant_id>/documents/<文献 UUID>/` 保存 PDF 原件与导出/审计文件；
-配置数据库后，解析结果与实验提取以 PostgreSQL `mp_docs` / `mp_experiments` 为准。
-材料查询快照、Agent 任务与异步 job 状态仍在租户目录；向量块在 `mp_chunks`（含 `tenant_id`）。
-若本地仍有旧版 `parsed.json`，可执行：
+## 08 · 开发、测试与已知限制
 
-~~~powershell
-uv run --locked --all-extras python -m scripts.migrate_docs_to_postgres
-~~~
-首次克隆不会获得开发机上的论文、实验记录、向量索引和历史任务，需要自行导入。
-
-`.gitignore` 排除真实环境配置、数据、日志、缓存、数据库备份和本机沙箱排障资料。
-文件仍保留在本地；Git 仓库不能代替科研数据与 Docker 数据卷备份。
-详见 [GitHub 使用说明](docs/github.md)。
-
-## 开发与验证
-
-~~~powershell
+```powershell
 uv run --locked --all-extras pytest -q
 uv run --locked --all-extras ruff check .
 uv lock --check
-~~~
+```
 
-截至 **2026-11-05**，开发环境中 **152+ 项离线测试通过，Ruff 检查通过**。
-测试使用明确的替身隔离外部服务；真实材料查询、PDF、RAG、OpenAlex 与协作案例另外验收，
-报告保存在本地 `data/acceptance/`，未随代码发布。
-响应式页面已检查 320–1440 px 视口；目前的检索评测仅包含单篇真实论文的 12 个问题，
-不能据此推断跨论文效果。详见 [检索评测](docs/retrieval.md)。
+截至本轮 V0.10 代码提交，GitHub Actions 最近一次确认 **205 项离线测试通过，Ruff 通过**。这些测试主要验证服务逻辑、数据模型、合成解析数据和安全边界，不等于真实材料科学数据集的统计评测。
 
-### 常见问题
+[查看 GitHub Actions 验证记录](https://github.com/ivyfan-toowell/mat_pilot/actions/runs/42624085581)
 
-- **8501 拒绝连接**：确认 Streamlit 终端仍在运行，并使用终端输出的端口；仅启动后端不会启动界面。
-- **界面能打开，但提示后端不可用**：确认 8000 端口的 FastAPI 服务已启动，`BACKEND_URL` 与其一致。
-- **就绪接口返回 503**：检查 Docker 数据库和必需配置；先用 `docker compose ps` 查看数据库状态。
-- **已有数据库无法认证**：修改 `.env` 不会重设已初始化数据卷中的密码，需保持配置与已有数据库一致。
-- **克隆后没有历史文献**：科研数据不在仓库内；请重新导入全文并建立索引。
+目前仍需继续验证和建设：真实 MinerU 结构化 ZIP 与本机环境兼容性、端到端证据定位、独立论文标注集、复杂表格/图像理解、科研物性范围扩展，以及大规模部署下的任务可靠性。
 
-## 当前边界与路线
+## 09 · 相关文档
 
-- **科研审核**：原文匹配、数值检查和模型 Reviewer 辅助复核，不能代替研究者审核。MP 计算带隙与论文实验带隙需分别解释。
-- **检索范围**：材料查询首批最多 100 条，不代表全库排名；检索分数不是置信概率；元数据不能作为已阅读全文的证据。
-- **文档能力**：当前主要支持文本 PDF；扫描件会提示需要 OCR。Word、Excel、复杂版式和完整多模态解析仍待开发。
-- **运行方式**：当前绑定 localhost；默认 `AUTH_MODE=off`（租户 `local`）。共享部署须开启 `api_key`。长任务有进程内异步队列与状态落盘，但尚无跨进程抢占或崩溃后自动恢复执行。
-- **后续计划（P3 / V0.8+）**：跨论文评测扩容、人审队列、OCR/多模态、跨进程 job 恢复；再推进 V1.0 知识图谱、报告、OIDC/RBAC 与完整服务部署。异步任务与文档 SSOT 已在 P0-b/c 落地。
+- [项目架构](docs/architecture.md) · [多 Agent 协作](docs/collaboration.md)
+- [V0.9 实验知识库使用](docs/v0.9/usage.md) · [科研局限](docs/v0.9/limitations.md)
+- [V0.10 MinerU / Chunk / 证据联动](docs/v0.10/mineru-integration.md)
+- [检索与评测](docs/retrieval.md) · [API 文档](docs/api.md)
+- [GitHub 维护说明](docs/github.md)
 
-## 项目文档
+---
 
-- [架构与调用关系](docs/architecture.md) · [API 说明](docs/api.md)
-- [论文发现](docs/literature.md) · [文献检索与评测](docs/retrieval.md) · [多角色协作](docs/collaboration.md)
-- [UI / UX 设计规范](docs/design/ui-ux-proposal.md) · [开发记录](docs/development.md)
-- [项目任务书与路线](docs/taskbook.md) · [仓库维护](docs/github.md)
+**MatPilot · Evidence-backed Research Agents for Materials Science**
 
-
-## V0.9 跨论文实验知识分析（开发分支）
-
-V0.9 新增样品级光学带隙提取、实验知识库（PostgreSQL JSONB）、字段级原文证据、
-规则式可比性判断、人工审核、Markdown/CSV 导出及 Streamlit “实验知识库”工作区。
-初期仅支持文本 PDF 的实验光学带隙，**不推断因果关系或材料机理**。
-可在原五个工作区外选择新入口，原有单 Agent、协作 Agent 和 Materials Project 仍可使用。
-
-- [操作和 API](docs/v0.9/usage.md)
-- [基线与差距](docs/v0.9/baseline.md)
-- [分阶段验收](docs/v0.9/acceptance.md)
-- [科研局限](docs/v0.9/limitations.md)
-
-完整真实科研验证仍需用户在本机导入具有许可的论文、运行模型和数据库，并建立独立人工标注数据集。
-
-
-## V0.10 PDF 版面解析增强（开发分支）
-
-默认使用改进版 PyMuPDF 快速读取 PDF：全角归一化、页眉页脚过滤、字体标题检测、基础双栏排序、章节识别与按段落/句子进行的来源块级 Chunk 切分。复杂科研 PDF 可在“论文解析”中，对已上传的文献点击“**使用 MinerU 重新解析所选论文**”，通过后台任务调用独立安装的 MinerU 4.x，并从 ZIP 结构化数据读取页码与文本块位置。不会将图片 Base64 导入向量库。
-
-MinerU 环境独立于 MatPilot Python 3.13 主环境，按需设置 `MINERU_CLI_PATH` 指向 `mineru-kit.exe`，并重新启动 8000 后端。高精度解析会创建**新文献版本**，不覆盖旧实验结果和人审记录；新文献需要重新建索引、核查证据。
-
-具体配置、接口、限制与验收说明见 [MinerU 集成说明](docs/v0.10/mineru-integration.md)。当前 ZIP 结构兼容及 Chunk 已有离线测试，真实本地 MinerU 与数据库联调仍需执行。
+*让每条实验数据有来源，让每项跨论文比较有条件，让每个科研结论都能被审查。*
