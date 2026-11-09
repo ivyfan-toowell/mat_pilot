@@ -54,3 +54,24 @@ MinerU 不加入 MatPilot 的 `pyproject.toml` 或 `uv.lock`，以免和 Python 
 - 每条科研实验数据的页码、块 ID 和引文需可回到 PDF 原页查验。
 
 离线测试验证合成 MinerU ZIP 的结构转换与异常安全边界。**真实本地 MinerU ZIP → API → PostgreSQL → Chunk → 实验知识库**的全链路仍须运行验收，不能仅凭离线测试宣称完成。
+
+
+## V0.10.1–V0.10.3 end-to-end contract
+
+### V0.10.1 — unified parsed sources
+
+`ParsedDocument.parser_engine` is `pymupdf` or `mineru`. Optional `parent_document_id` links a MinerU reparse to its earlier document while preserving both UUIDs. Each `SourceBlock` carries `page_number`, `bbox`, `block_id`, `role` (title, section, paragraph, table, formula, caption) and optional `section_path`. Legacy JSON remains compatible through defaults.
+
+### V0.10.2 — section-aware RAG chunks
+
+Paragraphs are grouped within the same **page and section**. Tables remain indivisible. Content includes short `[来源块 ...]` markers so an answer can be traced to specific text, and `mp_chunks` stores `section_path` and `source_block_ids` as JSONB. A new additive Alembic revision `20261109_0003` supports existing PostgreSQL installations. The chunker removes inline Base64 image payloads before embedding; picture interpretation and image-to-caption linking are separate roadmap items.
+
+**Important:** when new code is deployed, run `uv run alembic upgrade head` if `SCHEMA_AUTO_APPLY=false`. Otherwise the backend schema initialization adds the columns. Already indexed documents have the old chunk format until the user explicitly reindexes them. Creating a MinerU document version does not change the old index automatically.
+
+### V0.10.3 — evidence-aligned extraction, review and Agent
+
+The structured extractor uses neighboring text blocks within the same page/section for evidence context; only copied original `block_id`/line-span quotes are eligible for experimental observations. Before machine drafts are stored, a separate auditor checks each referenced block/page, quote substring and optical bandgap numeric value. `GET /api/v1/experimental-knowledge/observations/{id}/audit` returns an audit report, displayed in the experiment review UI. Approval is blocked if that audit fails; rejection is still possible.
+
+RAG reindexing writes the new multi-block provenance to PostgreSQL and refuses chunks with broken references before paid embeddings. Dense, BM25 and hybrid retrieval recover the references. Agent answers include section context and are validated against actual, persisted source blocks (a quote crossing block boundaries is rejected), in addition to existing model-output checks.
+
+This validation is **source-to-parsed-text**, not OCR-to-PDF-image proof. Researchers must still check scientific sample attribution, formulas and numerical relations. After upgrading, repeat the MinerU reparse, reindex the **new document UUID**, extract the sample records and review their evidence. No automatic migration of previously approved samples is attempted.
