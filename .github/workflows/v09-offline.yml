@@ -1,0 +1,22 @@
+name: V0.9 offline checks
+on:
+  push:
+    branches: [feature/v0.9-research-analysis]
+  pull_request:
+    branches: [main]
+jobs:
+  offline-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Sync locked dependencies
+        run: uv sync --locked --all-extras
+      - name: Offline tests
+        run: uv run --locked --all-extras pytest -q
+      - name: Ruff
+        run: uv run --locked --all-extras ruff check .
