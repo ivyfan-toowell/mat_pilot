@@ -6,6 +6,9 @@
 
 ### Added
 
+- **文献信息管理（2026-11-11）**：从 PDF 元数据或首页提取作者，依据原文修正标题；支持手动编辑标题与完整作者，重解析继承人工修正信息。
+- **全部已解析论文**：按作者、标题或文件名搜索，每页 10 条；按解析版本打开、移入回收站及恢复，保留原文、实验记录和审核信息。
+- 新增文献元数据、分页目录、删除与恢复 API，以及相关持久化、租户隔离与界面回归测试。
 - **P1-a 可观测与限流**：`X-Request-ID`、审计日志、可选 `LOG_JSON`；`RATE_LIMIT_*` 令牌桶（默认关闭）；ServiceError 与 429 错误体均含 `request_id`。
 - **P1-b Schema 治理**：`apply_schema` / Alembic；请求路径不再 DDL；可选 `VECTOR_HNSW`。
 - **P2 契约与结构**：业务 API `/api/v1/...`；补全 response_model；共享 `LLMClient`；Agent 拆为 `tools` / `claims` / 编排。
@@ -24,11 +27,18 @@
 
 ### Changed
 
+- 文献快捷选择器最多展示 10 条，以「作者 · 标题」显示，并保留解析版本标识；提供全部论文入口。
+- 移入回收站的文献从新检索与实验记录列表中隐藏，恢复后重新可用，无需重建索引。
+- 工作区卡片在点击进入页面时立即向上平滑到位（约 0.62 秒），全程可见；页面动效可关闭。
 - 默认 `AUTH_MODE=off` 时使用隐式租户 `local`，路径落在 `tenants/local/`（与旧扁平布局不兼容，需跑迁移脚本）。
 - 业务 HTTP 路径统一为 `/api/v1/...`；限流高成本前缀仅匹配 v1 路由。
 - Comparison 请求/响应模型归入 `app/schemas/material.py`；`/health` 并入 `app/api/health.py`。
 - 文档对齐现状：`README.md`、`docs/architecture.md`、`docs/api.md`、`docs/development.md`、`docs/collaboration.md`、`docs/github.md`、`docs/design/ui-ux-proposal.md`、`.env.example`。
 - 离线测试 152+ 项。
+
+### Fixed
+
+- Windows 下任务状态文件被轮询短暂占用时，原子替换有限重试；持续失败仍保留原文件并报告存储错误。
 
 ### Planned
 

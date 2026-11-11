@@ -54,7 +54,25 @@ def setup_shell(backend_url: str) -> str:
                         on_click=go_to,
                         args=(label,),
                     )
+        motion_enabled = st.toggle(
+            "页面动效",
+            value=True,
+            key="motion_enabled",
+            help="点击进入工作区时，卡片立即从下方向上平滑到位。",
+        )
         st.html('<div class="mp-navigation-note">从材料问题<br>到可核查的证据</div>')
+    # A distinct name per workspace restarts CSS entry animations on navigation,
+    # including when Streamlit reuses an existing DOM container. No timers or JS.
+    stage = WORKSPACES.get(current, ("catalog", ""))[0]
+    animation = f"mp-enter-{stage} 620ms cubic-bezier(.22,.61,.36,1) 0s both"
+    st.html(
+        "<style>"
+        f"@keyframes mp-enter-{stage} {{"
+        "from { transform:translateY(34px); } to { transform:none; }}"
+        f".st-key-workspace_stage_{stage} {{"
+        f"--mp-entry-animation:{animation if motion_enabled else 'none'};"
+        "}</style>"
+    )
     try:
         status = service_status(backend_url)
         ready = status.get("status") == "ready"
@@ -179,7 +197,35 @@ def request_error(exc: Exception, fallback: str) -> None:
 
 
 def document_label(item: dict) -> str:
-    return f"{item['title']} · {item['page_count']} 页 · {item['parsed_at'][:16].replace('T', ' ')}"
+    authors = item.get("authors") or []
+    author = authors[0] + (" 等" if len(authors) > 1 else "") if authors else "作者待补充"
+    engine = "MinerU" if item.get("parser_engine") == "mineru" else "PyMuPDF"
+    version = str(item["document_id"])[:6]
+    return f"{author} · {item['title']} 〔{engine} · {version}〕"
+
+
+def recent_documents(backend_url: str, selected: str | None = None) -> list[dict]:
+    documents = get_json(backend_url, "/api/v1/documents?limit=10")[:10]
+    if selected and selected not in {item["document_id"] for item in documents}:
+        try:
+            current = get_json(backend_url, f"/api/v1/documents/{selected}")
+            if not current.get("deleted_at"):
+                # Keep a paper opened from the full catalog selected without growing the list.
+                documents = documents[:9] + [{"has_experiments": False, **current}]
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+    return documents
+
+
+def browse_documents_button(key: str = "browse_documents") -> None:
+    st.button(
+        "查看更多 · 全部已解析论文",
+        key=key,
+        icon=":material/library_books:",
+        on_click=go_to,
+        args=("全部论文",),
+    )
 
 
 def research_context(backend_url: str) -> dict | None:
@@ -187,13 +233,14 @@ def research_context(backend_url: str) -> dict | None:
     if pending:
         st.session_state.active_document_id = pending
         get_json.clear()
+    existing = st.session_state.get("document", {}).get("document_id")
+    active = st.session_state.get("active_document_id", existing)
     try:
-        documents = get_json(backend_url, "/api/v1/documents")
+        documents = recent_documents(backend_url, active)
     except (httpx.HTTPError, ValueError):
         st.caption("暂时无法读取文献列表；可稍后重试，或前往论文解析上传文献。")
         return st.session_state.get("document")
     lookup = {item["document_id"]: item for item in documents}
-    existing = st.session_state.get("document", {}).get("document_id")
     if "active_document_id" not in st.session_state:
         st.session_state.active_document_id = existing if existing in lookup else None
     if st.session_state.active_document_id not in lookup:
@@ -210,14 +257,17 @@ def research_context(backend_url: str) -> dict | None:
                 if value is None
                 else document_label(lookup[value])
             ),
-            help="通过论文名称选择研究范围，无需手填文献 ID。选择文献不会自动调用模型。",
+            help="按作者与标题选择文献，末尾标识用于区分解析版本。可在论文解析中编辑论文信息。",
         )
         if chosen:
             item = lookup[chosen]
             st.caption(
                 f"{item['filename']} · "
+                f"{item['page_count']} 页 · "
                 f"{'已有实验记录' if item['has_experiments'] else '可提取实验记录'}"
             )
+        st.caption("最近解析的论文，最多展示 10 条；从全部论文打开的当前文献会保留在列表中。")
+        browse_documents_button()
     if not chosen:
         st.session_state.pop("document", None)
         return None

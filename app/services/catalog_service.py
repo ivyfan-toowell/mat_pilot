@@ -10,13 +10,13 @@ from pydantic import ValidationError
 from app.core.config import LOCAL_TENANT_ID, Settings
 from app.core.errors import ServiceError
 from app.schemas.agent import AgentResult, AgentRunSummary
-from app.schemas.document import DocumentSummary, ParsedDocument
+from app.schemas.document import DocumentCatalogPage, DocumentSummary, ParsedDocument
 from app.services.document_store import DocumentStore
 
 logger = logging.getLogger(__name__)
 
 
-def _paths(folder: Path, pattern: str) -> list[Path]:
+def _paths(folder: Path, pattern: str, maximum: int | None = 500) -> list[Path]:
     if not folder.exists():
         return []
     candidates = []
@@ -29,7 +29,7 @@ def _paths(folder: Path, pattern: str) -> list[Path]:
             candidates.append((path.stat().st_mtime_ns, path))
         except (ValueError, OSError):
             continue
-    return [path for _, path in sorted(candidates, reverse=True)[:500]]
+    return [path for _, path in sorted(candidates, reverse=True)[:maximum]]
 
 
 def list_documents(
@@ -38,13 +38,33 @@ def list_documents(
     settings: Settings | None = None,
     tenant_id: str = LOCAL_TENANT_ID,
 ) -> list[DocumentSummary]:
+    return document_page(data_dir, limit, settings, tenant_id).items
+
+
+def document_page(
+    data_dir: Path,
+    limit: int = 10,
+    settings: Settings | None = None,
+    tenant_id: str = LOCAL_TENANT_ID,
+    *,
+    offset: int = 0,
+    query: str = "",
+    deleted: bool = False,
+) -> DocumentCatalogPage:
     if settings is not None and settings.database_url:
-        return DocumentStore(settings, tenant_id).list(limit)
+        return DocumentStore(settings, tenant_id).page(
+            limit=limit, offset=offset, query=query, deleted=deleted
+        )
     records = []
-    for path in _paths(data_dir / "documents", "*/parsed.json"):
+    for path in _paths(data_dir / "documents", "*/parsed.json", maximum=None):
         try:
             document = ParsedDocument.model_validate_json(path.read_text(encoding="utf-8"))
             if str(document.document_id) != path.parent.name:
+                continue
+            if bool(document.deleted_at) != deleted:
+                continue
+            searchable = " ".join([document.title, document.filename, *document.authors])
+            if query.casefold() not in searchable.casefold():
                 continue
             records.append(
                 DocumentSummary(
@@ -54,7 +74,10 @@ def list_documents(
             )
         except (OSError, ValidationError):
             logger.warning("跳过不可读取的文献归档：%s", path.parent.name)
-    return sorted(records, key=lambda item: item.parsed_at, reverse=True)[:limit]
+    records.sort(key=lambda item: (item.parsed_at, str(item.document_id)), reverse=True)
+    return DocumentCatalogPage(
+        items=records[offset : offset + limit], total=len(records), limit=limit, offset=offset
+    )
 
 
 def list_agent_runs(data_dir: Path, limit: int = 50) -> list[AgentRunSummary]:

@@ -18,7 +18,26 @@ uv run --locked --all-extras streamlit run streamlit_app.py --server.address 127
 ```
 数据库仍是原 PostgreSQL；迁移添加三张表，旧 mp_experiments 不变。执行迁移前建议备份数据。
 
+## 文献名称与作者
+
+文献选择列表按「第一作者 · 论文标题」显示，并保留解析引擎和版本标识。
+上传时从 PDF 元数据或首页作者行读取作者；无法识别时显示「作者待补充」。
+进入「论文解析」→「编辑论文信息」可以校正标题和作者（每行一位）。
+保存不会重新解析、提取或调用模型；文献 ID、原文证据和已有实验记录保留。
+
+快捷选择列表最多显示 10 条记录。点击「查看更多 · 全部已解析论文」进入全部论文，
+可按作者、标题或文件名搜索，每页显示 10 条，并打开或删除指定解析版本。
+删除会移入回收站，从文献列表与新检索中隐藏；原文、实验记录及审核信息保留，
+可在全部论文的「回收站」中恢复。其他解析版本不受影响。
+
+侧栏的「页面动效」控制进入工作区时的卡片移动：点击切换后立即从下方向上平滑到位，
+约 0.62 秒完成，全程保持可见。关闭后直接显示页面；填写表单不会重复播放。
+
 ## 核心 API
+- `PATCH /api/v1/documents/{document_id}/metadata`：保存 `{"title":"论文标题","authors":["作者甲","作者乙"]}`
+- `GET /api/v1/documents/catalog?limit=10&offset=0&q=关键词&deleted=false`：分页浏览论文
+- `DELETE /api/v1/documents/{document_id}`：将一个解析版本移入回收站
+- `POST /api/v1/documents/{document_id}/restore`：恢复解析版本
 - `POST /api/v1/experimental-knowledge/documents/{document_id}/extract`：付费模型执行 opt-in 样品级提取，仅存证据校验通过的记录
 - `GET /api/v1/experimental-knowledge/observations?formula=TiO2&limit=100`：租户过滤查询
 - `GET /api/v1/experimental-knowledge/observations/{id}`：观察记录与原文
