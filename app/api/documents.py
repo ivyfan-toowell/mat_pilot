@@ -9,9 +9,15 @@ from app.core.auth import PrincipalDep
 from app.core.config import Settings, get_settings, tenant_data_dir
 from app.ingestion.extractor import ExperimentExtractor
 from app.ingestion.pdf_parser import MAX_PDF_BYTES
-from app.schemas.document import DocumentSummary, ParsedDocument
+from app.schemas.document import (
+    DocumentCatalogPage,
+    DocumentMetadataUpdate,
+    DocumentStatus,
+    DocumentSummary,
+    ParsedDocument,
+)
 from app.schemas.experiment import ExtractionResult
-from app.services.catalog_service import list_documents
+from app.services.catalog_service import document_page, list_documents
 from app.services.document_service import DocumentService
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
@@ -50,6 +56,42 @@ def upload_pdf(
     )
 
 
+@router.get("/catalog", response_model=DocumentCatalogPage)
+def paged_document_catalog(
+    settings: SettingsDep,
+    principal: PrincipalDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+    offset: Annotated[int, Query(ge=0, le=1000000)] = 0,
+    q: Annotated[str, Query(max_length=200)] = "",
+    deleted: bool = False,
+) -> DocumentCatalogPage:
+    return document_page(
+        tenant_data_dir(settings, principal.tenant_id),
+        limit,
+        settings,
+        principal.tenant_id,
+        offset=offset,
+        query=q.strip(),
+        deleted=deleted,
+    )
+
+
+@router.delete("/{document_id}", response_model=DocumentStatus)
+def delete_document(
+    document_id: UUID, settings: SettingsDep, principal: PrincipalDep
+) -> DocumentStatus:
+    document = _docs(settings, principal.tenant_id).set_deleted(document_id, deleted=True)
+    return DocumentStatus(document_id=document.document_id, deleted_at=document.deleted_at)
+
+
+@router.post("/{document_id}/restore", response_model=DocumentStatus)
+def restore_document(
+    document_id: UUID, settings: SettingsDep, principal: PrincipalDep
+) -> DocumentStatus:
+    document = _docs(settings, principal.tenant_id).set_deleted(document_id, deleted=False)
+    return DocumentStatus(document_id=document.document_id, deleted_at=document.deleted_at)
+
+
 @router.get("/{document_id}", response_model=ParsedDocument)
 def get_document(
     document_id: UUID, settings: SettingsDep, principal: PrincipalDep
@@ -62,6 +104,16 @@ def get_experiments(
     document_id: UUID, settings: SettingsDep, principal: PrincipalDep
 ) -> ExtractionResult:
     return _docs(settings, principal.tenant_id).load_experiments(document_id)
+
+
+@router.patch("/{document_id}/metadata", response_model=ParsedDocument)
+def update_document_metadata(
+    document_id: UUID,
+    metadata: DocumentMetadataUpdate,
+    settings: SettingsDep,
+    principal: PrincipalDep,
+) -> ParsedDocument:
+    return _docs(settings, principal.tenant_id).update_metadata(document_id, metadata)
 
 
 @router.post("/{document_id}/extract", response_model=ExtractionResult)

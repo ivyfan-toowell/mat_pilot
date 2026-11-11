@@ -61,6 +61,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
 .mp-material-values span { color:var(--mp-muted); }
 .mp-material-values strong { display:block; color:var(--mp-text); font-weight:500; font-variant-numeric:tabular-nums; }
 .st-key-mobile_results { display:none; }
+/* Start moving on the first rendered frame: no invisible phase, delays or
+   scroll observers. The page toggle explicitly controls this entry animation. */
+[class*="st-key-workspace_stage_"] :where([class*="st-key-panel_"], [class*="st-key-reveal_"], .st-key-research_context, [data-testid="stExpander"], .mp-empty) {
+  animation:var(--mp-entry-animation,none)!important;
+}
+/* Nested cards travel with their parent rather than doubling the movement. */
+[class*="st-key-workspace_stage_"] :where([class*="st-key-panel_"], [class*="st-key-reveal_"], .st-key-research_context, [data-testid="stExpander"], .mp-empty) :where([class*="st-key-panel_"], [class*="st-key-reveal_"], .st-key-research_context, [data-testid="stExpander"], .mp-empty) {
+  animation:none!important;
+}
 @media (min-width:1600px) { [data-testid="stMainBlockContainer"] { max-width:1552px; } }
 @media (min-width:768px) and (max-width:1100px) { .st-key-navigation { width:192px!important; padding-inline:12px!important; } [data-testid="stMainBlockContainer"] { padding-left:220px; padding-right:24px; } }
 @media (max-width:767px) {
@@ -89,4 +98,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-vi
   [data-testid="stDialog"] [role="dialog"] { max-width:calc(100vw - 24px); margin-inline:12px; }
   .mp-empty { padding:28px 16px; }
 }
-@media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; } }
+@media (prefers-reduced-motion:reduce) {
+  *, *::before, *::after { transition:none!important; animation:none!important; }
+}

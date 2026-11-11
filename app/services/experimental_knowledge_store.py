@@ -29,7 +29,8 @@ class ExperimentalKnowledgeStore:
         run_id = uuid4()
         with connect_postgres(self.settings) as conn:
             owned = conn.execute(
-                "SELECT 1 FROM mp_docs WHERE document_id=%s AND tenant_id=%s",
+                "SELECT 1 FROM mp_docs WHERE document_id=%s AND tenant_id=%s "
+                "AND parsed->>'deleted_at' IS NULL",
                 (document_id, self.tenant_id),
             ).fetchone()
             if not owned:
@@ -83,6 +84,10 @@ class ExperimentalKnowledgeStore:
                  WHERE tenant_id=%s AND (%s::uuid IS NULL OR document_id=%s::uuid)
                    AND (%s::text IS NULL OR formula=%s::text)
                    AND (%s::text IS NULL OR verification_status=%s::text)
+                   AND NOT EXISTS (SELECT 1 FROM mp_docs AS deleted_doc
+                       WHERE deleted_doc.document_id=mp_knowledge_observations.document_id
+                       AND deleted_doc.tenant_id=mp_knowledge_observations.tenant_id
+                       AND deleted_doc.parsed->>'deleted_at' IS NOT NULL)
                  ORDER BY created_at DESC, observation_id LIMIT %s OFFSET %s"""
         params = (
             self.tenant_id,

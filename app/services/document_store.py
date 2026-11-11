@@ -1,10 +1,16 @@
 """文献与实验提取元数据的 Postgres 单一事实来源。"""
 
+from datetime import datetime
 from uuid import UUID
 
 from app.core.config import LOCAL_TENANT_ID, Settings
 from app.core.errors import ServiceError
-from app.schemas.document import DocumentSummary, ParsedDocument
+from app.schemas.document import (
+    DocumentCatalogPage,
+    DocumentMetadataUpdate,
+    DocumentSummary,
+    ParsedDocument,
+)
 from app.schemas.experiment import ExtractionResult
 from app.services.db import connect_postgres
 
@@ -47,14 +53,71 @@ class DocumentStore:
             raise ServiceError("document_not_found", "未找到已解析的文献。", 404)
         return ParsedDocument.model_validate(row["parsed"])
 
-    def list(self, limit: int = 100) -> list[DocumentSummary]:
+    def update_metadata(
+        self, document_id: UUID, metadata: DocumentMetadataUpdate, *, edited: bool = True
+    ) -> ParsedDocument:
+        from psycopg.types.json import Jsonb
+
+        values = {**metadata.model_dump(), "metadata_edited": edited}
         with self.connect() as conn:
+            row = conn.execute(
+                """UPDATE mp_docs SET parsed=parsed || %s, updated_at=now()
+                WHERE document_id=%s AND tenant_id=%s
+                AND parsed->>'deleted_at' IS NULL RETURNING parsed""",
+                (Jsonb(values), document_id, self.tenant_id),
+            ).fetchone()
+            if not row:
+                raise ServiceError("document_not_found", "未找到已解析的文献。", 404)
+            # Keep citation titles current without rebuilding embeddings or evidence.
+            conn.execute(
+                "UPDATE mp_chunks SET title=%s WHERE document_id=%s AND tenant_id=%s",
+                (metadata.title, document_id, self.tenant_id),
+            )
+            conn.execute(
+                """UPDATE mp_documents SET parsed=parsed || %s
+                WHERE document_id=%s AND tenant_id=%s""",
+                (Jsonb({"title": metadata.title}), document_id, self.tenant_id),
+            )
+        return ParsedDocument.model_validate(row["parsed"])
+
+    def set_deleted(self, document_id: UUID, deleted_at: datetime | None) -> ParsedDocument:
+        from psycopg.types.json import Jsonb
+
+        with self.connect() as conn:
+            row = conn.execute(
+                """UPDATE mp_docs SET parsed=parsed || %s, updated_at=now()
+                WHERE document_id=%s AND tenant_id=%s RETURNING parsed""",
+                (
+                    Jsonb({"deleted_at": deleted_at.isoformat() if deleted_at else None}),
+                    document_id,
+                    self.tenant_id,
+                ),
+            ).fetchone()
+        if not row:
+            raise ServiceError("document_not_found", "未找到已解析的文献。", 404)
+        return ParsedDocument.model_validate(row["parsed"])
+
+    def list(self, limit: int = 100) -> list[DocumentSummary]:
+        return self.page(limit=limit).items
+
+    def page(
+        self, *, limit: int = 10, offset: int = 0, query: str = "", deleted: bool = False
+    ) -> DocumentCatalogPage:
+        filters = """WHERE tenant_id=%s
+            AND (parsed->>'deleted_at' IS NOT NULL)=%s
+            AND (%s='' OR strpos(lower(concat_ws(' ', parsed->>'title',
+                parsed->>'authors', parsed->>'filename')), lower(%s)) > 0)"""
+        params = (self.tenant_id, deleted, query, query)
+        with self.connect() as conn:
+            total = conn.execute(
+                "SELECT count(*) AS total FROM mp_docs " + filters, params
+            ).fetchone()["total"]
             rows = conn.execute(
-                """SELECT parsed, has_experiments FROM mp_docs
-                WHERE tenant_id=%s
-                ORDER BY (parsed->>'parsed_at') DESC NULLS LAST
-                LIMIT %s""",
-                (self.tenant_id, limit),
+                "SELECT parsed, has_experiments FROM mp_docs "
+                + filters
+                + " ORDER BY (parsed->>'parsed_at') DESC NULLS LAST, document_id DESC"
+                + " LIMIT %s OFFSET %s",
+                (*params, limit, offset),
             ).fetchall()
         records = []
         for row in rows:
@@ -62,14 +125,15 @@ class DocumentStore:
             records.append(
                 DocumentSummary(**document.model_dump(), has_experiments=row["has_experiments"])
             )
-        return records
+        return DocumentCatalogPage(items=records, total=total, limit=limit, offset=offset)
 
     def save_experiments(self, result: ExtractionResult) -> None:
         from psycopg.types.json import Jsonb
 
         with self.connect() as conn:
             owned = conn.execute(
-                "SELECT 1 FROM mp_docs WHERE document_id=%s AND tenant_id=%s",
+                "SELECT 1 FROM mp_docs WHERE document_id=%s AND tenant_id=%s "
+                "AND parsed->>'deleted_at' IS NULL",
                 (result.document_id, self.tenant_id),
             ).fetchone()
             if not owned:
@@ -95,9 +159,7 @@ class DocumentStore:
                 (document_id, self.tenant_id),
             ).fetchone()
         if not row:
-            raise ServiceError(
-                "experiments_not_found", "该文献尚无已保存的实验提取记录。", 404
-            )
+            raise ServiceError("experiments_not_found", "该文献尚无已保存的实验提取记录。", 404)
         return ExtractionResult.model_validate(row["extraction"])
 
     def has_experiments(self, document_id: UUID) -> bool:

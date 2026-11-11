@@ -1,6 +1,7 @@
 """提供论文上传、已有文献回读、页码证据与实验记录的响应式界面。"""
 
 import json
+import re
 
 import httpx
 import pandas as pd
@@ -72,6 +73,40 @@ def render(backend_url: str) -> None:
         )
         return
     document_id = document["document_id"]
+    with st.expander("编辑论文信息", expanded=False):
+        st.caption("根据论文首页校正标题和作者，保存后会更新各工作区的文献列表。")
+        with st.form(f"paper_metadata_{document_id}"):
+            paper_title = st.text_input("论文标题", value=document["title"], max_chars=500)
+            paper_authors = st.text_area(
+                "论文作者（每行一位，按原文顺序）",
+                value="\n".join(document.get("authors") or []),
+                height=100,
+            )
+            save_metadata = st.form_submit_button("保存论文信息")
+        if save_metadata:
+            if not paper_title.strip():
+                st.error("请填写论文标题。")
+            else:
+                try:
+                    response = httpx.patch(
+                        f"{backend_url}/api/v1/documents/{document_id}/metadata",
+                        json={
+                            "title": paper_title.strip(),
+                            "authors": [
+                                name.strip()
+                                for name in re.split(r"[\n;；、]+", paper_authors)
+                                if name.strip()
+                            ],
+                        },
+                        timeout=20,
+                        trust_env=False,
+                        headers=api_headers(),
+                    )
+                    response.raise_for_status()
+                    get_json.clear()
+                    activate_document(response.json())
+                except (httpx.HTTPError, ValueError) as exc:
+                    request_error(exc, "论文信息未能保存，请稍后重试。")
     with st.expander("解析质量优化 · MinerU 高精度解析", expanded=False):
         st.caption(
             "默认 PyMuPDF 负责快速上传解析。复杂双栏、扫描或公式密集论文可以使用 "
@@ -99,6 +134,7 @@ def render(backend_url: str) -> None:
     document_id = document["document_id"]
     with st.container(key="panel_document"):
         st.subheader(document["title"])
+        st.caption("作者：" + ("、".join(document.get("authors") or []) or "待补充"))
         badges((f"{document['page_count']} 页", "neutral"), ("论文原文", "blue"))
         for warning in document["warnings"]:
             st.warning(warning)
@@ -154,7 +190,9 @@ def render(backend_url: str) -> None:
                 for warning in extraction["warnings"]:
                     st.warning(warning)
                 for item in extraction["experiments"]:
-                    with st.container(border=True):
+                    with st.container(
+                        border=True, key=f"reveal_experiment_{item['experiment_id']}"
+                    ):
                         st.subheader(
                             f"{item['sample_label']} · "
                             f"{number(item['property_value'], item['property_unit'])}"

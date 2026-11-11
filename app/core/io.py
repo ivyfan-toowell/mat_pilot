@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,7 +14,16 @@ def atomic_write_text(path: Path, text: str, *, error_message: str = "状态保�
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary.write_text(text, encoding="utf-8")
-        temporary.replace(path)
+        for attempt in range(5):
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError as exc:
+                # Windows readers/virus scanners can briefly deny replacement.
+                # Never fall back to truncating the original or retry indefinitely.
+                if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 4:
+                    raise
+                time.sleep(0.01 * 2**attempt)
     except OSError as exc:
         try:
             temporary.unlink(missing_ok=True)

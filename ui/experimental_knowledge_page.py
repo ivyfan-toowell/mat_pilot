@@ -9,9 +9,11 @@ import streamlit as st
 from ui.shared import (
     JobFailed,
     api_headers,
+    browse_documents_button,
     document_label,
     get_json,
     page_header,
+    recent_documents,
     request_error,
     run_job,
 )
@@ -38,8 +40,9 @@ def render(backend_url: str) -> None:
     pending_document_id = st.session_state.pop("pending_document_id", None)
     if pending_document_id:
         st.session_state.active_document_id = pending_document_id
+        get_json.clear()
     try:
-        documents = get_json(backend_url, "/api/v1/documents")
+        documents = recent_documents(backend_url, st.session_state.get("active_document_id"))
     except (httpx.HTTPError, ValueError) as exc:
         request_error(exc, "无法加载已解析论文列表，请检查后端连接。")
         return
@@ -63,6 +66,8 @@ def render(backend_url: str) -> None:
         st.info("尚无已解析论文，请先在「论文解析」上传 PDF。")
     elif doc_id:
         st.caption(f"已选：{document_lookup[doc_id]['filename']}")
+    st.caption("最近解析的论文，最多展示 10 条。")
+    browse_documents_button(key="browse_experimental_documents")
     col1, col2 = st.columns(2)
     with col1:
         formula = st.text_input("化学式过滤（可选）", placeholder="TiO2")

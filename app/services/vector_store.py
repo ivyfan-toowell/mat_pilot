@@ -127,6 +127,10 @@ class VectorStore:
                 text,title,source_url,license,section_path,source_block_ids,
                 1-(embedding <=> %s) AS similarity
                 FROM mp_chunks WHERE tenant_id=%s
+                AND NOT EXISTS (SELECT 1 FROM mp_docs AS deleted_doc
+                    WHERE deleted_doc.document_id=mp_chunks.document_id
+                    AND deleted_doc.tenant_id=mp_chunks.tenant_id
+                    AND deleted_doc.parsed->>'deleted_at' IS NOT NULL)
                 AND (%s::uuid IS NULL OR document_id=%s)
                 AND 1-(embedding <=> %s) >= %s ORDER BY embedding <=> %s LIMIT %s""",
                 (
@@ -149,6 +153,10 @@ class VectorStore:
                 """SELECT chunk_id,document_id,block_id,page_number,kind,
                 text,title,source_url,license,section_path,source_block_ids FROM mp_chunks
                 WHERE tenant_id=%s AND (%s::uuid IS NULL OR document_id=%s)
+                AND NOT EXISTS (SELECT 1 FROM mp_docs AS deleted_doc
+                    WHERE deleted_doc.document_id=mp_chunks.document_id
+                    AND deleted_doc.tenant_id=mp_chunks.tenant_id
+                    AND deleted_doc.parsed->>'deleted_at' IS NOT NULL)
                 ORDER BY document_id, page_number, block_id, chunk_id LIMIT %s""",
                 (self.tenant_id, document_id, document_id, limit + 1),
             ).fetchall()
