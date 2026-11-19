@@ -71,33 +71,26 @@ MatPilot 把复杂研究问题组织为 **Planner → 两位领域专家 → Ana
 
 ### 3.2 · 系统服务与数据流
 
-```mermaid
-flowchart TD
-    U["Streamlit 科研工作台"] --> API["FastAPI /api/v1"]
-    API --> M["材料数据服务"]
-    API --> L["文献发现服务"]
-    API --> D["DocumentService"]
-    API --> K["RAG 与实验知识库"]
-    API --> A["LangGraph 科研 Agent"]
-    API --> J["后台 JobWorker"]
-    M --> MP["Materials Project"]
-    L --> OA["OpenAlex"]
-    D --> P["PyMuPDF + pdfplumber（默认）"]
-    D --> MU["MinerU（独立环境，可选）"]
-    P --> PD["统一 ParsedDocument / SourceBlock"]
-    MU --> PD
-    PD --> CH["结构感知 Chunk"]
-    PD --> EX["实验字段提取 + Evidence Audit"]
-    CH --> V["PostgreSQL + pgvector / BM25L"]
-    V --> K
-    EX --> DB["实验观察记录 + 人工审核"]
-    DB --> K
-    K --> A
-    A --> W["Planner / 专家 / Analysis / Reviewer"]
-    J --> D
-    J --> K
-    J --> A
-```
+MatPilot 采用 **Streamlit + FastAPI 的模块化应用架构**。下面先展示服务职责与依赖，再单独展示证据数据的处理链路；业务域不是独立部署的微服务。
+
+![MatPilot 系统服务全景：工作台、API 与后台任务、六个业务域、PostgreSQL、租户文件及外部依赖](docs/assets/system-architecture.svg)
+
+[放大服务全景图](docs/assets/system-architecture.svg) · [PNG](docs/assets/system-architecture.png)
+
+- **入口与执行**：六个工作区经 FastAPI 调用业务服务；API Key / local 主体、租户隔离、请求追踪、限流和统一异常处理作用于公共入口。索引、实验提取、MinerU 重解析与 Agent 长任务可经 `JobWorker` 执行，界面轮询状态。
+- **业务域**：材料查询、论文发现、文献管理与解析、检索问答、实验知识、科研 Agent 各自负责明确的业务职责；Agent 通过白名单工具使用前五域能力。
+- **两类持久化**：PostgreSQL 保存文献、传统提取、向量索引与结构化实验及审核历史；租户文件目录保存原始 PDF、查询快照、任务状态与 Agent 轨迹。图中 `PG` / `FILES` 标记各域直接使用的存储。
+- **外部依赖**：Materials Project 提供计算属性；OpenAlex 提供书目元数据；生成、Embedding 与 Rerank 经统一模型客户端访问。MinerU 在独立环境中运行，属于可选解析引擎。
+
+### 3.3 · 从论文到证据答案
+
+![MatPilot 证据数据流：统一文档模型分别进入文本检索与实验知识链路，再按任务支持引用式答案、比较报告和人工判断](docs/assets/research-data-flow.svg)
+
+[放大证据数据流图](docs/assets/research-data-flow.svg) · [PNG](docs/assets/research-data-flow.png)
+
+解析后的 `ParsedDocument / SourceBlock` 是共用证据源，随后由使用者分别触发**建立索引**和**提取实验记录**。文本链路保留 Chunk 与原文块关联，执行向量 / 稀疏召回、融合与可选重排；实验链路保留样品、条件、数值、原文审计与人工审核状态，用于可比性检查及跨论文报告。RAG 或 Agent 按任务取用其中的证据，不要求每次问答都完整执行两条链路。
+
+图按配置 PostgreSQL 的常规部署绘制；未配置数据库时，文献与传统提取可回退本地 JSON，向量检索及结构化实验知识库仍依赖 PostgreSQL。人工审核状态随记录保留，Agent 读取候选不等于研究者已认可结论。
 
 | 层次 | 技术栈 |
 | --- | --- |

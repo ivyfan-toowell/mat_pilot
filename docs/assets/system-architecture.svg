@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1080" viewBox="0 0 1680 1080" role="img" aria-labelledby="title desc">
+<title id="title">MatPilot 系统服务全景</title><desc id="desc">分层展示 Streamlit、FastAPI、后台任务、六个业务域、PostgreSQL、租户文件及外部服务。箭头为服务调用方向；业务域卡片注明使用的存储与外部依赖。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 9 5 1 9" fill="none" stroke="#8593a6" stroke-width="1.7"/></marker></defs>
+<style>text{font-family:'Segoe UI','Microsoft YaHei',sans-serif;fill:#24344b}.title{font-size:36px;font-weight:700;letter-spacing:1px}.h{font-size:24px;font-weight:650}.body{font-size:20px}.small{font-size:17px;fill:#617087}.code{font-size:15px;fill:#617087;font-family:Consolas,'Microsoft YaHei',monospace}.label{font-size:16px;font-weight:650;letter-spacing:1.5px;fill:#617087}</style>
+<rect width="1680" height="1080" fill="#fff"/>
+<text x="40" y="43" class="label" style="fill:#315ed0">MATPILOT   /   ARCHITECTURE</text>
+<text x="40" y="94" class="title">系统服务全景</text>
+<text x="40" y="126" class="small">从工作台到业务服务，再到持久化与外部依赖；业务域是代码职责划分，均运行在同一个 FastAPI 应用内。</text>
+<text x="1557" y="63" class="title" style="fill:#d5dfed">01</text>
+<rect x="40" y="155" width="1600" height="83" rx="14" fill="#172c4b" stroke="none"/>
+<text x="62" y="190" class="h" style="fill:#fff">Streamlit 科研工作台</text>
+<text x="62" y="219" class="small" style="fill:#b9c9df">HTTP → FastAPI</text>
+<text x="365" y="201" class="body" style="fill:#fff">材料筛选</text>
+<text x="573" y="201" class="body" style="fill:#fff">论文发现</text>
+<text x="781" y="201" class="body" style="fill:#fff">论文解析 / 文献管理</text>
+<text x="989" y="201" class="body" style="fill:#fff">文献知识库</text>
+<text x="1197" y="201" class="body" style="fill:#fff">实验知识库</text>
+<text x="1405" y="201" class="body" style="fill:#fff">科研助手</text>
+<path d="M840 238V273" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="40" y="273" width="1600" height="149" rx="14" fill="#f4f7fc" stroke="#dbe3ed"/>
+<text x="62" y="308" class="h">FastAPI  /api/v1</text>
+<text x="358" y="307" class="body">Principal / 租户隔离</text>
+<text x="658" y="307" class="body">Request ID / 日志 / 可选限流</text>
+<text x="1090" y="307" class="body">统一异常处理 / health / ready</text>
+<path d="M62 326H1618" fill="none" stroke="#dbe3ed" stroke-width="1.7" stroke-linejoin="round"/>
+<text x="62" y="355" class="body">同步业务路由</text>
+<text x="62" y="390" class="small">CLI / API 直接调用</text>
+<text x="350" y="355" class="body">后台长任务   POST /jobs/* → JobWorker → 业务执行 → 状态落盘 → GET /jobs/{id}</text>
+<text x="350" y="390" class="small">索引 · 两类实验提取 · MinerU 重解析 · Agent 任务   |   进程内线程池，非分布式队列</text>
+<path d="M840 422V452" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round"/>
+<path d="M165 452H1515" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round"/>
+<path d="M165 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M435 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M705 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M975 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1245 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1515 452V486" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="40" y="486" width="250" height="255" rx="14" fill="#f3f6fc" stroke="none"/>
+<rect x="40" y="486" width="250" height="4" rx="0" fill="#466ea9" stroke="none"/>
+<text x="58" y="528" class="h" style="fill:#466ea9">材料服务</text>
+<text x="58" y="557" class="code">MaterialsProjectService</text>
+<text x="58" y="599" class="body">属性筛选与材料详情</text>
+<text x="58" y="630" class="body">晶体结构 / 快照比较</text>
+<text x="58" y="661" class="body">JSON / CSV 导出</text>
+<rect x="58" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="68" y="699" class="small" style="fill:#466ea9">FILES</text>
+<text x="58" y="725" class="code">外部：Materials Project</text>
+<rect x="310" y="486" width="250" height="255" rx="14" fill="#f3f6fc" stroke="none"/>
+<rect x="310" y="486" width="250" height="4" rx="0" fill="#466ea9" stroke="none"/>
+<text x="328" y="528" class="h" style="fill:#466ea9">文献发现</text>
+<text x="328" y="557" class="code">LiteratureService</text>
+<text x="328" y="599" class="body">关键词 / DOI 检索</text>
+<text x="328" y="630" class="body">开放获取与许可元数据</text>
+<text x="328" y="661" class="body">检索结果快照</text>
+<rect x="328" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="338" y="699" class="small" style="fill:#466ea9">FILES</text>
+<text x="328" y="725" class="code">外部：OpenAlex</text>
+<rect x="580" y="486" width="250" height="255" rx="14" fill="#eef8f6" stroke="none"/>
+<rect x="580" y="486" width="250" height="4" rx="0" fill="#18877f" stroke="none"/>
+<text x="598" y="528" class="h" style="fill:#18877f">文献管理与解析</text>
+<text x="598" y="557" class="code">DocumentService</text>
+<text x="598" y="599" class="body">上传 / 目录 / 元数据</text>
+<text x="598" y="630" class="body">PyMuPDF + pdfplumber</text>
+<text x="598" y="661" class="body">MinerU 独立进程（可选）</text>
+<rect x="598" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="608" y="699" class="small" style="fill:#18877f">PG</text>
+<rect x="674" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="684" y="699" class="small" style="fill:#18877f">FILES</text>
+<text x="598" y="725" class="code">产物：ParsedDocument / 块</text>
+<rect x="850" y="486" width="250" height="255" rx="14" fill="#eef8f6" stroke="none"/>
+<rect x="850" y="486" width="250" height="4" rx="0" fill="#18877f" stroke="none"/>
+<text x="868" y="528" class="h" style="fill:#18877f">检索与问答</text>
+<text x="868" y="557" class="code">RagService</text>
+<text x="868" y="599" class="body">结构感知 Chunk / 向量</text>
+<text x="868" y="630" class="body">Dense + BM25L → RRF</text>
+<text x="868" y="661" class="body">可选 Rerank / 引用问答</text>
+<rect x="868" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="878" y="699" class="small" style="fill:#18877f">PG</text>
+<text x="868" y="725" class="code">外部：模型 API</text>
+<rect x="1120" y="486" width="250" height="255" rx="14" fill="#fbf6ed" stroke="none"/>
+<rect x="1120" y="486" width="250" height="4" rx="0" fill="#956e37" stroke="none"/>
+<text x="1138" y="528" class="h" style="fill:#956e37">实验知识库</text>
+<text x="1138" y="557" class="code">ExperimentalKnowledge</text>
+<text x="1138" y="599" class="body">样品 / 条件 / 光学带隙</text>
+<text x="1138" y="630" class="body">原文审计 / 人工审核</text>
+<text x="1138" y="661" class="body">可比性 / 跨论文报告</text>
+<rect x="1138" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="1148" y="699" class="small" style="fill:#956e37">PG</text>
+<text x="1138" y="725" class="code">外部：模型 API（提取）</text>
+<rect x="1390" y="486" width="250" height="255" rx="14" fill="#f7f3fc" stroke="none"/>
+<rect x="1390" y="486" width="250" height="4" rx="0" fill="#7959a4" stroke="none"/>
+<text x="1408" y="528" class="h" style="fill:#7959a4">科研 Agent</text>
+<text x="1408" y="557" class="code">LangGraph</text>
+<text x="1408" y="599" class="body">single / auto / 协作</text>
+<text x="1408" y="630" class="body">规划 → 专家 → 分析</text>
+<text x="1408" y="661" class="body">程序校验 + Reviewer</text>
+<rect x="1408" y="679" width="66" height="28" rx="7" fill="#fff" stroke="none"/>
+<text x="1418" y="699" class="small" style="fill:#7959a4">FILES</text>
+<text x="1408" y="725" class="code">调用：前五域工具 / 模型 API</text>
+<text x="40" y="779" class="label">PERSISTENCE   /   按卡片 PG、FILES 标记读写介质；具体证据流见图 02</text>
+<rect x="40" y="797" width="915" height="132" rx="14" fill="#f4f7fc" stroke="#dbe3ed"/>
+<text x="62" y="833" class="h">PG   PostgreSQL + pgvector</text>
+<text x="62" y="867" class="body">文献全文与传统提取：mp_docs / mp_experiments</text>
+<text x="62" y="899" class="body">检索索引：mp_documents / mp_chunks</text>
+<text x="568" y="867" class="code">mp_knowledge_observations</text>
+<text x="568" y="899" class="code">mp_knowledge_runs / mp_knowledge_reviews</text>
+<rect x="975" y="797" width="665" height="132" rx="14" fill="#f4f7fc" stroke="#dbe3ed"/>
+<text x="997" y="833" class="h">FILES   data/tenants/{tenant_id}/</text>
+<text x="997" y="867" class="body">原始 PDF · 材料 / 文献快照 · 导出</text>
+<text x="997" y="899" class="body">jobs 状态 · agent_runs 轨迹 / checkpoint</text>
+<text x="40" y="962" class="label">EXTERNAL DEPENDENCIES   /   外部服务与模型能力</text>
+<rect x="40" y="980" width="400" height="72" rx="14" fill="#fff" stroke="#dbe3ed"/>
+<text x="58" y="1009" class="body">Materials Project</text>
+<text x="58" y="1037" class="small">计算材料数据 / 结构</text>
+<rect x="460" y="980" width="400" height="72" rx="14" fill="#fff" stroke="#dbe3ed"/>
+<text x="478" y="1009" class="body">OpenAlex</text>
+<text x="478" y="1037" class="small">论文书目与开放获取元数据</text>
+<rect x="880" y="980" width="760" height="72" rx="14" fill="#fff" stroke="#dbe3ed"/>
+<text x="898" y="1009" class="body">统一模型访问 · LLMClient</text>
+<text x="898" y="1037" class="small">ChatService / EmbeddingService / RerankService → 模型 API</text>
+</svg>

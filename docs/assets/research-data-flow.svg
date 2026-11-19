@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1030" viewBox="0 0 1680 1030" role="img" aria-labelledby="title desc">
+<title id="title">MatPilot 文献到证据答案的数据流</title><desc id="desc">论文经双解析引擎输出统一文档模型，分别建立检索索引、提取并审核实验知识。RAG 和科研 Agent 按任务取用证据，生成可回溯答案与报告。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1 9 5 1 9" fill="none" stroke="#8593a6" stroke-width="1.7"/></marker></defs>
+<style>text{font-family:'Segoe UI','Microsoft YaHei',sans-serif;fill:#24344b}.title{font-size:36px;font-weight:700;letter-spacing:1px}.h{font-size:24px;font-weight:650}.body{font-size:20px}.small{font-size:17px;fill:#617087}.code{font-size:15px;fill:#617087;font-family:Consolas,'Microsoft YaHei',monospace}.label{font-size:16px;font-weight:650;letter-spacing:1.5px;fill:#617087}</style>
+<rect width="1680" height="1030" fill="#fff"/>
+<text x="40" y="43" class="label" style="fill:#315ed0">MATPILOT   /   ARCHITECTURE</text>
+<text x="40" y="94" class="title">从论文到可核查的科研结果</text>
+<text x="40" y="126" class="small">文献解析只产生统一证据源；建立索引与提取实验记录是两条独立链路，研究者可分别触发。</text>
+<text x="1557" y="63" class="title" style="fill:#d5dfed">02</text>
+<rect x="40" y="166" width="325" height="138" rx="14" fill="#f4f7fc" stroke="none"/>
+<text x="60" y="201" class="h" style="fill:#24344b">合法获取的论文 PDF</text>
+<text x="60" y="234" class="body">上传原件 / 本地留存</text>
+<text x="60" y="263" class="body">OpenAlex 仅辅助发现元数据</text>
+<path d="M365 235H410" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="410" y="166" width="420" height="138" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="430" y="201" class="h" style="fill:#18877f">双引擎解析</text>
+<text x="430" y="234" class="body">默认：PyMuPDF + pdfplumber</text>
+<text x="430" y="263" class="body">可选：MinerU → 新文献版本</text>
+<path d="M830 235H875" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="875" y="166" width="765" height="138" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="895" y="201" class="h" style="fill:#18877f">统一文档与来源模型</text>
+<text x="895" y="234" class="body">ParsedDocument / SourceBlock → mp_docs</text>
+<text x="895" y="263" class="body">页码 · bbox · block_id · section_path · 文献版本关系</text>
+<text x="40" y="353" class="label" style="fill:#18877f">A / 文本检索链路</text>
+<text x="40" y="621" class="label" style="fill:#956e37">B / 实验知识链路</text>
+<path d="M1255 304V326H200V374" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M200 326H16V595H200V642" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="40" y="374" width="320" height="156" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="60" y="409" class="h" style="fill:#18877f">结构感知 Chunk</text>
+<text x="60" y="442" class="body">章节 / 段落 / 完整表格</text>
+<text x="60" y="471" class="body">保存 source_block_ids</text>
+<text x="60" y="500" class="body">Embedding → 向量索引</text>
+<path d="M360 452H406" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="406" y="374" width="348" height="156" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="426" y="409" class="h" style="fill:#18877f">PG 检索索引</text>
+<text x="426" y="442" class="body">mp_documents：索引登记</text>
+<text x="426" y="471" class="body">mp_chunks：文本 + 向量</text>
+<text x="426" y="500" class="body">保留原文块与页码关联</text>
+<path d="M754 452H800" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="800" y="374" width="394" height="156" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="820" y="409" class="h" style="fill:#18877f">混合检索与重排</text>
+<text x="820" y="442" class="body">查询 → Dense / BM25L</text>
+<text x="820" y="471" class="body">RRF 融合 → 可选 Rerank</text>
+<text x="820" y="500" class="body">结果：有来源的候选片段</text>
+<path d="M1194 452H1240" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1240" y="374" width="400" height="156" rx="14" fill="#eef8f6" stroke="none"/>
+<text x="1260" y="409" class="h" style="fill:#18877f">文献证据上下文</text>
+<text x="1260" y="442" class="body">原文片段 + 文献 / 页码</text>
+<text x="1260" y="471" class="body">RAG / Agent 按问题取用</text>
+<text x="1260" y="500" class="body">引用回查原始 SourceBlock</text>
+<text x="40" y="562" class="small">索引与问答共用模型 API；BM25L 从 Chunk 文本构建稀疏召回，不是独立数据库。</text>
+<rect x="40" y="642" width="320" height="156" rx="14" fill="#fbf6ed" stroke="none"/>
+<text x="60" y="677" class="h" style="fill:#956e37">实验结构化提取</text>
+<text x="60" y="710" class="body">样品 / 工艺 / 测量方法</text>
+<text x="60" y="739" class="body">光学带隙 / 数值 / 单位</text>
+<text x="60" y="768" class="body">Evidence Audit 原文校验</text>
+<path d="M360 720H406" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="406" y="642" width="348" height="156" rx="14" fill="#fbf6ed" stroke="none"/>
+<text x="426" y="677" class="h" style="fill:#956e37">PG 实验知识</text>
+<text x="426" y="710" class="body">mp_knowledge_runs</text>
+<text x="426" y="739" class="body">mp_knowledge_observations</text>
+<text x="426" y="768" class="body">机器候选 + 提取版本</text>
+<path d="M754 720H800" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="800" y="642" width="394" height="156" rx="14" fill="#fbf6ed" stroke="none"/>
+<text x="820" y="677" class="h" style="fill:#956e37">审核与可比性检查</text>
+<text x="820" y="710" class="body">记录审核状态 / 可回看原文</text>
+<text x="820" y="739" class="body">审核历史 → mp_knowledge_reviews</text>
+<text x="820" y="768" class="body">条件 / 方法差异 → 比较警告</text>
+<path d="M1194 720H1240" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1240" y="642" width="400" height="156" rx="14" fill="#fbf6ed" stroke="none"/>
+<text x="1260" y="677" class="h" style="fill:#956e37">实验数据与分析上下文</text>
+<text x="1260" y="710" class="body">跨样品 / 跨论文对比</text>
+<text x="1260" y="739" class="body">Markdown / CSV 报告</text>
+<text x="1260" y="768" class="body">保留来源与审核状态</text>
+<text x="40" y="830" class="small">传统 ExperimentExtractor 另存 mp_experiments；Agent 可读实验记录与候选状态，人工审核状态始终随证据保留。</text>
+<path d="M1640 452H1652V857H450V883" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1640 720H1652" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round"/>
+<rect x="40" y="883" width="820" height="113" rx="14" fill="#eef3ff" stroke="none"/>
+<text x="60" y="918" class="h" style="fill:#315ed0">RAG / 科研 Agent → 带引用答案</text>
+<text x="60" y="951" class="body">文献问答校验引用；协作 Agent 另经程序校验与独立 Reviewer。</text>
+<rect x="900" y="883" width="740" height="113" rx="14" fill="#f4f7fc" stroke="none"/>
+<text x="920" y="918" class="h" style="fill:#24344b">可追溯使用与人工判断</text>
+<text x="920" y="951" class="body">回查 PDF / 原文；任务与工具轨迹留存；科研结论由研究者判断。</text>
+<path d="M860 960H900" fill="none" stroke="#8593a6" stroke-width="1.7" stroke-linejoin="round" marker-end="url(#arrow)"/>
+</svg>
