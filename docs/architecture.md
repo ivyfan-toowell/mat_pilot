@@ -1,59 +1,43 @@
 # 当前架构与调用关系
 
-```mermaid
-flowchart TD
-  UI[Streamlit 五工作区] --> API[FastAPI /api/v1]
-  API --> AUTH[Principal API Key / local]
-  AUTH --> TENANT[tenants tenant_id 文件与向量]
-  API --> JOBS[JobWorker 异步长任务]
-  API --> M[MaterialsProjectService]
-  M --> MP[Materials Project 实时 API]
-  M --> Q[QueryStore: JSON / CSV]
-  API --> D[DocumentService]
-  D --> DS[DocumentStore mp_docs / mp_experiments]
-  D --> P[PyMuPDF / pdfplumber]
-  P --> E[页码 / 块 / 表格 / Markdown]
-  E --> X[ExperimentExtractor]
-  X --> S[模型选择原文行号]
-  S --> V[复制原文并校验公式 / 样品 / 数值 / 单位]
-  V --> F[实验记录 / 候选历史 / 审核状态]
-  API --> R[RagService]
-  E --> C[chunk_document]
-  C --> B[EmbeddingService]
-  LLM[LLMClient DashScope] --> B
-  LLM --> CHAT[ChatService]
-  B --> PG[(PostgreSQL + pgvector)]
-  DS --> PG
-  R --> PG
-  PG --> BM[BM25L: Jieba / 化学式分词]
-  PG --> DENSE[Dense: 余弦召回]
-  BM --> RF[RRF 按排名融合]
-  DENSE --> RF
-  RF --> RR[可选 qwen3-rerank]
-  RR --> R
-  R --> A[带引用答案与原文]
-  API --> G[LangGraph ResearchAgent]
-  G --> TOOLS[agents/tools]
-  G --> CLAIMS[agents/claims]
-  G --> M
-  G --> R
-  G --> OA[OpenAlex 元数据检索]
-  API --> OA
-  OA --> LS[论文元数据快照]
-  G --> F
-  G --> CMP[compare_materials]
-  CMP --> Q
-  G --> T[工具轨迹 / 引文行号 / 结果归档]
-  API --> RT[Supervisor 路由]
-  RT --> CP[协作 Planner]
-  CP --> EX[材料 / 文献专家]
-  EX --> AN[Analysis]
-  AN --> RV[独立 Reviewer]
-  RV --> T
-  JOBS --> G
-  JOBS --> D
-  JOBS --> R
-```
+系统按入口、业务职责、持久化与外部依赖分层。下图中的业务域是同一 FastAPI 应用中的模块，
+不是六个独立微服务；服务调用与证据数据处理分别绘图，避免将控制关系混成一条处理流水线。
+
+## 系统服务全景
+
+![MatPilot 分层系统架构](assets/system-architecture.svg)
+
+[完整 SVG](assets/system-architecture.svg) · [PNG](assets/system-architecture.png)
+
+| 业务域 | 主要代码 | 数据与职责 |
+| --- | --- | --- |
+| 材料服务 | `science/materials_project.py`、`services/material_service.py`、`services/comparison_service.py` | MP 属性与结构、查询快照、快照比较与导出 |
+| 文献发现 | `services/literature_service.py` | OpenAlex 元数据检索、开放获取信息与查询快照 |
+| 文献管理与解析 | `services/document_service.py`、`services/document_store.py`、`services/catalog_service.py`、`ingestion/` | 原始 PDF、目录、元数据、删除状态、双引擎解析与文献版本 |
+| 检索与问答 | `services/rag_service.py`、`vector_store.py`、`hybrid_retrieval.py`、`embedding_service.py`、`rerank_service.py` | Chunk、向量 / 稀疏召回、RRF、可选重排与引用问答 |
+| 实验知识库 | `ingestion/structured_extractor.py`、`services/experimental_knowledge_store.py`、`evidence_audit.py`、`experimental_comparison.py`、`cross_paper_report.py` | 原文审计、样品级实验、审核历史、可比性与报告 |
+| 科研 Agent | `agents/research.py`、`collaboration.py`、`tools.py`、`claims.py` | 单 Agent / 规则路由 / 协作、工具白名单、论断与引文校验、复核轨迹 |
+
+后台任务由 `api/jobs.py`、`services/job_service.py` 管理；公共认证与租户解析位于 `core/auth.py`，
+请求追踪与限流位于 `core/middleware.py`。模型生成、Embedding、Rerank 共用 `services/llm_client.py`。
+
+图中 `PG` 与 `FILES` 表示业务域直接读写的存储；Agent 通过工具间接读取业务数据，并将自身轨迹落到文件。
+数据库表分别承担不同职责，BM25L 使用已存 Chunk 文本做稀疏召回，不是单独的存储服务。
+
+## 证据数据流
+
+![统一文档分别进入文本索引与实验知识链路](assets/research-data-flow.svg)
+
+[完整 SVG](assets/research-data-flow.svg) · [PNG](assets/research-data-flow.png)
+
+上图以配置 PostgreSQL 的常规部署为基准。建立索引与结构化提取分别触发，不是每次问答必经的处理步骤。
+文献检索和实验知识都可为 Agent 提供工具证据；跨论文报告也可直接由实验知识工作区生成。
+人工审核状态与候选记录一并保留，图中审核环节不表示所有 Agent 调用都强制等待人工审批。
+
+Materials Project 计算属性还可独立进入材料筛选与 Agent 工具结果；OpenAlex 返回书目元数据，
+不自动下载或提供论文全文。详细团队角色与一次修复回路见 [多角色科研协作](collaboration.md)。
+
+## 实现细节与边界
 
 主要函数与边界：
 
