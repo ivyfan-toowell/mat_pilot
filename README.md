@@ -8,7 +8,7 @@
 
 MatPilot 将 **PDF 结构化解析 → 实验观察记录 → 语义检索 → 跨论文比较 → 人工证据审核**组织在统一工作流中。计算数据与实验数据分别标注，缺失字段保持缺失，任何跨样品或跨论文的比较都必须考虑测量方法与实验条件。
 
-> **项目阶段：V0.9 + V0.10 开发分支。** 已实现主要模块并通过离线自动化检查；MinerU 本地 GPU → FastAPI → PostgreSQL → 检索与人工审核的完整联调仍需在真实运行环境验收。项目是科研辅助工具，不自动认定实验因果关系或替代科研人员判断。
+> **项目阶段：V0.9 / V0.10 主要功能已合入 main。** 已实现主要模块并通过离线自动化检查；MinerU 本地 GPU → FastAPI → PostgreSQL → 检索与人工审核的完整联调仍需在真实运行环境验收。项目是科研辅助工具，不自动认定实验因果关系或替代科研人员判断。
 
 ---
 
@@ -43,7 +43,33 @@ MatPilot 面向材料科研中从文献调研到实验对比的常见任务，�
 
 当前实验知识库的结构化物性范围主要是 **实验光学带隙（eV）**。光电流、响应度、电阻率、迁移率等更广泛物性尚未形成通用结构化提取链路。
 
-## 03 · 系统架构
+## 03 · Subagent 团队编排与系统架构
+
+### 3.1 · 科研团队如何协作
+
+![MatPilot Subagent 团队编排：规则路由、Planner、材料与文献专家、Analysis、程序校验、Reviewer、引用式答案与研究者审核](docs/assets/subagent-orchestration.svg)
+
+[查看完整 SVG](docs/assets/subagent-orchestration.svg) · [下载 PNG](docs/assets/subagent-orchestration.png) · [详细编排与预算](docs/collaboration.md)
+
+MatPilot 把复杂研究问题组织为 **Planner → 两位领域专家 → Analysis → Reviewer** 的协作链路。上图按当前实现绘制：角色共享有界预算，但各自承担不同职责，专家只能调用所属领域的工具。
+
+| 角色 | 工作职责 | 交付与边界 |
+| --- | --- | --- |
+| **Router · 任务路由** | 根据显式模式、所选工具与关键词选择流程 | 默认 `single`；`auto` 对跨材料与文献任务启用协作；显式 `collaborative` 直接进入协作 |
+| **Planner · 规划** | 为材料、文献两个专家制定目标、工具和依赖 | 恰好两个专家计划；服务端校验角色、工具归属与依赖 |
+| **材料专家** | 查询 Materials Project 材料属性、详情、结构与快照对比 | 返回计算数据与真实工具记录；不把计算属性当作实验值 |
+| **文献专家** | 检索本地论文、实验记录与跨论文分析，按配置使用 OpenAlex | 返回原文证据或结构化记录；在线书目元数据不充当全文证据 |
+| **Analysis · 分析** | 基于成功工具结果比较、归纳并选择论断及引文行号 | 程序复制原文，检查引用范围、常见科研量值与方法来源；不支持的内容不能进入已校验候选 |
+| **Reviewer · 独立复核** | 逐条核对样品、属性、数值、单位、引文与比较局限 | 每条论断恰好检查一次；拒绝后反馈给 Analysis，最多重写一次 |
+| **研究者** | 回看论文原页，审核实验记录并判断结论是否适用 | 是科研使用与人工审核环节，不是 LangGraph 中的模型角色 |
+
+**调度与输出**：两位专家无依赖时并行，有依赖时串行并传递工具结果。Analysis 的程序校验或 Reviewer 未通过时，共用最多一次重写机会；重写复用已有证据，不重复专家查询。校验或复核仍失败、格式不完整或预算耗尽时返回错误并保留阶段状态；无论断时返回证据不足状态。单 Agent 使用独立的工具循环，不执行图中的协作 Reviewer。
+
+**预算与追溯**：协作默认最多 **10 次模型调用、全局 8 次工具调用、240 秒步骤间时间预算**；已发出的网络请求由各服务自身超时约束。阶段 checkpoint、工具记录、分析候选与复核结果保存到租户目录，可通过历史任务回读。当前为进程内工作流与阶段落盘，不具备分布式调度或跨进程自动恢复能力。
+
+实现入口：[路由与协作编排](app/agents/collaboration.py) · [角色与工具约束](app/schemas/agent.py) · [引文解析与校验](app/agents/claims.py) · [单 Agent](app/agents/research.py)。
+
+### 3.2 · 系统服务与数据流
 
 ```mermaid
 flowchart TD
@@ -151,7 +177,7 @@ uv sync --locked --all-extras
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-> 注意：截至本 README 更新，V0.9/V0.10 修改位于 `feature/v0.9-research-analysis` / PR #2。若尚未合并到 `main`，请在首次克隆后执行 `git switch feature/v0.9-research-analysis`（必要时先 `git fetch origin`），再运行 `uv sync`。
+以上命令使用默认的 `main` 分支，其中已包含 V0.9 / V0.10 主要功能。
 
 ### 5.2 配置 .env
 
@@ -302,7 +328,7 @@ uv run --locked --all-extras ruff check .
 uv lock --check
 ```
 
-截至本轮 V0.10 代码提交，GitHub Actions 最近一次确认 **205 项离线测试通过，Ruff 通过**。这些测试主要验证服务逻辑、数据模型、合成解析数据和安全边界，不等于真实材料科学数据集的统计评测。
+历史 V0.10 验证记录为 **205 项离线测试通过，Ruff 通过**；当前分支的结果应以重新运行上述命令及对应 CI 为准。这些测试主要验证服务逻辑、数据模型、合成解析数据和安全边界，不等于真实材料科学数据集的统计评测。
 
 [查看 GitHub Actions 验证记录](https://github.com/ivyfan-toowell/mat_pilot/actions/runs/42624085581)
 

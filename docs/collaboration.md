@@ -1,5 +1,15 @@
 # 多角色科研协作
 
+![MatPilot 多角色科研团队：数据来源、规划、领域专家、分析校验、独立复核与人工审核](assets/subagent-orchestration.svg)
+
+[查看完整 SVG](assets/subagent-orchestration.svg) · [下载 PNG](assets/subagent-orchestration.png)
+
+图中的 Router 是规则路由；Planner、材料专家、文献专家、Analysis 和 Reviewer 是协作中的模型角色。
+研究者位于结果使用与人工审核环节，不是图中的模型节点，也不是每次 Agent 答案返回前的强制审批节点。
+LangGraph 的实际图节点为 `planner` → `domain_agents` → `analysis_and_reviewer`，
+其中两个专家在 `domain_agents` 内调度，分析、程序校验和模型复核在最后一个节点内执行。
+图中展开这些内部职责，便于阅读角色分工；不能据此理解为每个卡片都是独立部署的服务。
+
 科研助手提供“单 Agent”“自动路由”“多角色协作”三个入口，默认保留单 Agent。
 自动路由按所选资料来源和关键词识别跨材料/文献任务；它是可检查的启发式规则，
 不是通用科研意图识别模型。单领域任务继续调用现有工具流程，避免强制执行所有角色。
